@@ -31,6 +31,10 @@ const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const UPLOADS_DIR = path.join(__dirname, 'public', 'uploads');
 const AVATARS_FILE = path.join(DATA_DIR, 'avatars.json');
 const avatars = new Map();
+const MESSAGES_FILE = path.join(DATA_DIR, 'messages.json');
+const MAX_HISTORY = parseInt(process.env.MAX_HISTORY || '500', 10);
+let roomMessages = {};
+let dmMessages = {};
 
 // Multer storage for image uploads
 const storage = multer.diskStorage({
@@ -112,6 +116,76 @@ function saveAvatarsToFile() {
     }
 }
 
+function loadMessagesFromFile() {
+    try {
+        if (!fs.existsSync(DATA_DIR)) {
+            fs.mkdirSync(DATA_DIR, { recursive: true });
+        }
+        if (!fs.existsSync(MESSAGES_FILE)) {
+            fs.writeFileSync(MESSAGES_FILE, JSON.stringify({}, null, 2), 'utf8');
+        }
+        const raw = fs.readFileSync(MESSAGES_FILE, 'utf8');
+        const parsed = JSON.parse(raw || '{}');
+        if (parsed && (parsed.rooms || parsed.dms)) {
+            roomMessages = parsed.rooms || {};
+            dmMessages = parsed.dms || {};
+        } else {
+            // Backward compatibility: old format was just room messages object
+            roomMessages = parsed || {};
+            dmMessages = {};
+        }
+    } catch (e) {
+        console.error('Failed to load messages file', e);
+        roomMessages = {};
+        dmMessages = {};
+    }
+}
+
+function saveMessagesToFile() {
+    try {
+        const payload = { __format: 'v2', rooms: roomMessages, dms: dmMessages };
+        fs.writeFileSync(MESSAGES_FILE, JSON.stringify(payload, null, 2), 'utf8');
+    } catch (e) {
+        console.error('Failed to save messages file', e);
+    }
+}
+
+function appendMessage(roomId, message) {
+    const id = String(roomId);
+    if (!roomMessages[id]) roomMessages[id] = [];
+    roomMessages[id].push(message);
+    if (roomMessages[id].length > MAX_HISTORY) {
+        roomMessages[id] = roomMessages[id].slice(-MAX_HISTORY);
+    }
+    saveMessagesToFile();
+}
+
+function getRoomMessages(roomId) {
+    const id = String(roomId);
+    return Array.isArray(roomMessages[id]) ? roomMessages[id] : [];
+}
+
+function dmKey(a, b) {
+    const x = String(a || '').trim();
+    const y = String(b || '').trim();
+    return [x, y].sort((m, n) => m.localeCompare(n)).join('|');
+}
+
+function appendDM(userA, userB, message) {
+    const key = dmKey(userA, userB);
+    if (!dmMessages[key]) dmMessages[key] = [];
+    dmMessages[key].push(message);
+    if (dmMessages[key].length > MAX_HISTORY) {
+        dmMessages[key] = dmMessages[key].slice(-MAX_HISTORY);
+    }
+    saveMessagesToFile();
+}
+
+function getDM(userA, userB) {
+    const key = dmKey(userA, userB);
+    return Array.isArray(dmMessages[key]) ? dmMessages[key] : [];
+}
+
 function parseCookies(req) {
     const header = req.headers?.cookie || '';
     const out = {};
@@ -141,6 +215,7 @@ function getUserFromReq(req) {
 rooms.set('general', new Set());
 loadUsersFromFile();
 loadAvatarsFromFile();
+loadMessagesFromFile();
 
 // Auth endpoints
 app.post('/api/register', async (req, res) => {
@@ -274,9 +349,13 @@ app.post('/api/upload/photo', (req, res) => {
                 imageUrl: publicUrl,
                 avatarUrl: avatars.get(username) || null,
                 timestamp: new Date(),
-                roomId
+                roomId,
+                replyToId: body.replyToId || null,
+                replyToUsername: body.replyToUsername || null,
+                replyToSnippet: body.replyToSnippet || null,
             };
             io.to(roomId).emit('new-message', messageData);
+            appendMessage(roomId, messageData);
             return res.json({ ok: true, url: publicUrl, message: messageData });
         } catch (e) {
             console.error('Upload error', e);
@@ -328,6 +407,13 @@ io.on('connection', (socket) => {
                 }
                 rooms.get(invRoom).add(socket.id);
                 socket.emit('room-joined', invRoom);
+                // Send recent history to this user only
+                try {
+                    const hist = getRoomMessages(invRoom).slice(-100);
+                    for (const m of hist) {
+                        socket.emit('new-message', m);
+                    }
+                } catch {}
                 broadcastGroupsList();
             }
             pendingInvites.delete(socket.id);
@@ -337,6 +423,47 @@ io.on('connection', (socket) => {
     // Groups: send list
     socket.on('get-groups', () => {
         socket.emit('groups-update', listGroupsForSocket(socket.id));
+    });
+
+    // Private messages: send
+    socket.on('send-private', (data) => {
+        const fromUser = users.get(socket.id);
+        if (!fromUser) return;
+        const toName = String((data && (data.to || data.toUsername)) || '').trim();
+        const text = String((data && data.message) || '').trim();
+        if (!toName || !text) return;
+
+        let targetSocketId = null;
+        for (const [sid, u] of users.entries()) {
+            if (u.username === toName) { targetSocketId = sid; break; }
+        }
+        const msg = {
+            id: Date.now(),
+            username: fromUser.username,
+            to: toName,
+            message: text,
+            avatarUrl: avatars.get(fromUser.username) || null,
+            timestamp: new Date(),
+            replyToId: (data && data.replyToId) || null,
+            replyToUsername: (data && data.replyToUsername) || null,
+            replyToSnippet: (data && data.replyToSnippet) || null,
+        };
+        // Emit to both participants
+        socket.emit('private-message', msg);
+        if (targetSocketId) io.to(targetSocketId).emit('private-message', msg);
+        appendDM(fromUser.username, toName, msg);
+    });
+
+    // Private messages: history
+    socket.on('get-private-history', (data) => {
+        const fromUser = users.get(socket.id);
+        if (!fromUser) return;
+        const other = String((data && (data.with || data.username)) || '').trim();
+        if (!other) return;
+        const hist = getDM(fromUser.username, other).slice(-100);
+        for (const m of hist) {
+            socket.emit('private-message', m);
+        }
     });
 
     // Groups: create new
@@ -370,6 +497,13 @@ io.on('connection', (socket) => {
             rooms.get(roomId).add(socket.id);
             
             socket.emit('room-joined', roomId);
+            // Send recent history to this user only
+            try {
+                const hist = getRoomMessages(roomId).slice(-100);
+                for (const m of hist) {
+                    socket.emit('new-message', m);
+                }
+            } catch {}
             broadcastGroupsList();
         }
     });
@@ -382,11 +516,15 @@ io.on('connection', (socket) => {
             message: data.message,
             avatarUrl: avatars.get(data.username) || null,
             timestamp: new Date(),
-            roomId: data.roomId
+            roomId: data.roomId,
+            replyToId: data.replyToId || null,
+            replyToUsername: data.replyToUsername || null,
+            replyToSnippet: data.replyToSnippet || null,
         };
         
         // Broadcast message to room
         io.to(data.roomId).emit('new-message', messageData);
+        appendMessage(data.roomId, messageData);
     });
 
     // Handle call initiation
