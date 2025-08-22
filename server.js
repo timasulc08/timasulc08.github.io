@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const multer = require('multer');
 
 const app = express();
 const server = http.createServer(app);
@@ -27,6 +28,32 @@ const pendingInvites = new Map(); // socketId -> roomId
 
 const DATA_DIR = path.join(__dirname, 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const UPLOADS_DIR = path.join(__dirname, 'public', 'uploads');
+const AVATARS_FILE = path.join(DATA_DIR, 'avatars.json');
+const avatars = new Map();
+
+// Multer storage for image uploads
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        try {
+            fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+        } catch (e) {}
+        cb(null, UPLOADS_DIR);
+    },
+    filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname || '').toLowerCase() || '.jpg';
+        const name = Date.now() + '-' + Math.random().toString(36).slice(2, 8) + ext;
+        cb(null, name);
+    },
+});
+const upload = multer({
+    storage,
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+    fileFilter: (req, file, cb) => {
+        if ((file.mimetype || '').startsWith('image/')) cb(null, true);
+        else cb(new Error('Only image files are allowed'));
+    },
+});
 
 function loadUsersFromFile() {
     try {
@@ -53,6 +80,35 @@ function saveUsersToFile() {
         fs.writeFileSync(USERS_FILE, JSON.stringify(obj, null, 2), 'utf8');
     } catch (e) {
         console.error('Failed to save users file', e);
+    }
+}
+
+function loadAvatarsFromFile() {
+    try {
+        if (!fs.existsSync(DATA_DIR)) {
+            fs.mkdirSync(DATA_DIR, { recursive: true });
+        }
+        if (!fs.existsSync(AVATARS_FILE)) {
+            fs.writeFileSync(AVATARS_FILE, JSON.stringify({}, null, 2), 'utf8');
+        }
+        const raw = fs.readFileSync(AVATARS_FILE, 'utf8');
+        const obj = JSON.parse(raw || '{}');
+        avatars.clear();
+        for (const [uname, url] of Object.entries(obj)) {
+            avatars.set(uname, url);
+        }
+        console.log(`Loaded ${avatars.size} avatar(s)`);
+    } catch (e) {
+        console.error('Failed to load avatars file', e);
+    }
+}
+
+function saveAvatarsToFile() {
+    try {
+        const obj = Object.fromEntries(avatars.entries());
+        fs.writeFileSync(AVATARS_FILE, JSON.stringify(obj, null, 2), 'utf8');
+    } catch (e) {
+        console.error('Failed to save avatars file', e);
     }
 }
 
@@ -84,6 +140,7 @@ function getUserFromReq(req) {
 // Initialize a default group/room
 rooms.set('general', new Set());
 loadUsersFromFile();
+loadAvatarsFromFile();
 
 // Auth endpoints
 app.post('/api/register', async (req, res) => {
@@ -152,6 +209,80 @@ app.post('/api/logout', (req, res) => {
     }
     res.setHeader('Set-Cookie', 'auth=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax');
     return res.json({ ok: true });
+});
+
+// Upload photo endpoint
+app.post('/api/upload/avatar', (req, res) => {
+    upload.single('avatar')(req, res, (err) => {
+        if (err) {
+            const msg = err.message || String(err);
+            const code = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+            return res.status(code).json({ ok: false, error: `Upload error: ${msg}` });
+        }
+        const username = getUserFromReq(req);
+        if (!username) {
+            return res.status(401).json({ ok: false, error: 'Unauthorized' });
+        }
+        try {
+            if (!req.file) {
+                return res.status(400).json({ ok: false, error: 'No file uploaded' });
+            }
+            const publicUrl = `/uploads/${req.file.filename}`;
+            avatars.set(username, publicUrl);
+            saveAvatarsToFile();
+            // Also push updated users list with avatar urls
+            const usersList = Array.from(users.values()).map(u => ({
+                id: u.id,
+                username: u.username,
+                currentRoom: u.currentRoom,
+                avatarUrl: avatars.get(u.username) || null,
+            }));
+            io.emit('users-update', usersList);
+            return res.json({ ok: true, url: publicUrl });
+        } catch (e) {
+            console.error('Avatar upload error', e);
+            return res.status(500).json({ ok: false, error: 'Internal server error' });
+        }
+    });
+});
+
+app.post('/api/upload/photo', (req, res) => {
+    upload.single('photo')(req, res, (err) => {
+        if (err) {
+            const msg = err.message || String(err);
+            const code = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+            return res.status(code).json({ ok: false, error: `Upload error: ${msg}` });
+        }
+        const username = getUserFromReq(req);
+        if (!username) {
+            return res.status(401).json({ ok: false, error: 'Unauthorized' });
+        }
+        try {
+            const body = req.body || {};
+            const roomId = String(body.roomId || '').trim();
+            if (!roomId) {
+                return res.status(400).json({ ok: false, error: 'roomId is required' });
+            }
+            if (!req.file) {
+                return res.status(400).json({ ok: false, error: 'No file uploaded' });
+            }
+            const publicUrl = `/uploads/${req.file.filename}`;
+            const messageData = {
+                id: Date.now(),
+                username,
+                message: '',
+                imageUrl: publicUrl,
+                avatarUrl: avatars.get(username) || null,
+                timestamp: new Date(),
+                roomId
+            };
+            io.to(roomId).emit('new-message', messageData);
+            return res.json({ ok: true, url: publicUrl, message: messageData });
+        } catch (e) {
+            console.error('Upload error', e);
+            return res.status(500).json({ ok: false, error: 'Internal server error' });
+        }
+    });
 });
 
 io.on('connection', (socket) => {
@@ -249,6 +380,7 @@ io.on('connection', (socket) => {
             id: Date.now(),
             username: data.username,
             message: data.message,
+            avatarUrl: avatars.get(data.username) || null,
             timestamp: new Date(),
             roomId: data.roomId
         };
@@ -377,7 +509,12 @@ io.on('connection', (socket) => {
     }
 
     function broadcastUsersList() {
-        const usersList = Array.from(users.values());
+        const usersList = Array.from(users.values()).map(u => ({
+            id: u.id,
+            username: u.username,
+            currentRoom: u.currentRoom,
+            avatarUrl: avatars.get(u.username) || null,
+        }));
         io.emit('users-update', usersList);
     }
 
