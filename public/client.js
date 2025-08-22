@@ -11,6 +11,11 @@ class DiscordApp {
         this.isInCall = false;
         this.currentCallId = null;
         this.currentCallerId = null;
+        // Chat state
+        this.inDM = false;
+        this.dmWith = null;
+        this.dmPartners = new Set();
+        this.replyContext = null; // { id, username, snippet }
         
         // WebRTC configuration
         this.rtcConfig = {
@@ -138,6 +143,24 @@ class DiscordApp {
             this.sendMessage();
         });
         
+        // Reply actions (event delegation)
+        const messagesContainer = document.getElementById('messagesContainer');
+        if (messagesContainer) {
+            messagesContainer.addEventListener('click', (e) => {
+                const btn = e.target.closest('.reply-btn');
+                if (btn) {
+                    const id = btn.dataset.id;
+                    const username = btn.dataset.username || '';
+                    const snippet = btn.dataset.snippet || '';
+                    this.setReplyContext({ id, username, snippet });
+                }
+            });
+        }
+        const cancelReplyBtn = document.getElementById('cancelReplyBtn');
+        if (cancelReplyBtn) {
+            cancelReplyBtn.addEventListener('click', () => this.clearReplyContext());
+        }
+        
         const attachImageBtn = document.getElementById('attachImageBtn');
         const imageInput = document.getElementById('imageInput');
         if (attachImageBtn && imageInput) {
@@ -203,6 +226,15 @@ class DiscordApp {
                 } finally {
                     avatarInput.value = '';
                 }
+            });
+        }
+
+        // DMs list click
+        const dmsList = document.getElementById('dmsList');
+        if (dmsList) {
+            dmsList.addEventListener('click', (e) => {
+                const item = e.target.closest('.dm-item');
+                if (item) this.openDM(item.dataset.username);
             });
         }
 
@@ -408,7 +440,13 @@ class DiscordApp {
         
         // Message events
         this.socket.on('new-message', (messageData) => {
-            this.displayMessage(messageData);
+            // Only show room messages when not viewing a DM
+            if (!this.inDM) this.displayMessage(messageData);
+        });
+        
+        // Private message events
+        this.socket.on('private-message', (messageData) => {
+            this.handlePrivateMessage(messageData);
         });
         
         // Call events
@@ -512,22 +550,43 @@ class DiscordApp {
     }
     
     selectUser(user) {
-        console.log('Selected user:', user.username);
-        // You can implement private messaging here
+        // Open a DM with this user
+        if (!user || !user.username) return;
+        this.openDM(user.username);
     }
     
     sendMessage() {
         const messageInput = document.getElementById('messageInput');
         const message = messageInput.value.trim();
         
-        if (message) {
-            this.socket.emit('send-message', {
+        if (!message) return;
+        if (this.inDM && this.dmWith) {
+            const payload = {
+                to: this.dmWith,
+                message,
+            };
+            if (this.replyContext) {
+                payload.replyToId = this.replyContext.id;
+                payload.replyToUsername = this.replyContext.username;
+                payload.replyToSnippet = this.replyContext.snippet;
+            }
+            this.socket.emit('send-private', payload);
+            this.clearReplyContext();
+        } else {
+            const payload = {
                 roomId: this.currentRoom,
                 message: message,
-                username: this.username
-            });
-            messageInput.value = '';
+                username: this.username,
+            };
+            if (this.replyContext) {
+                payload.replyToId = this.replyContext.id;
+                payload.replyToUsername = this.replyContext.username;
+                payload.replyToSnippet = this.replyContext.snippet;
+            }
+            this.socket.emit('send-message', payload);
+            this.clearReplyContext();
         }
+        messageInput.value = '';
     }
     
     displayMessage(messageData) {
@@ -538,15 +597,22 @@ class DiscordApp {
         const timestamp = new Date(messageData.timestamp).toLocaleTimeString();
         const textHtml = this.escapeHtml(messageData.message || '');
         const img = messageData.imageUrl ? `<div class="message-image"><a href="${messageData.imageUrl}" target="_blank" rel="noopener"><img src="${messageData.imageUrl}" alt="image" style="max-width:320px;border-radius:8px;display:block;margin-top:6px"></a></div>` : '';
+        const replyPreview = (messageData.replyToUsername && messageData.replyToSnippet) ? `<div style="border-left:3px solid #5865f2;padding:6px 8px;margin-bottom:6px;background:#2f3136;border-radius:4px;">
+            <span style="color:#8e9297;">Reply to ${this.escapeHtml(messageData.replyToUsername)}:</span>
+            <div style="color:#b9bbbe;">${this.escapeHtml(messageData.replyToSnippet)}</div>
+        </div>` : '';
         
         const avatar = messageData.avatarUrl ? `<img class="avatar" src="${messageData.avatarUrl}" alt="">` : '';
+        const snippet = (messageData.message && messageData.message.trim()) ? messageData.message.trim() : (messageData.imageUrl ? 'Photo' : '');
+        const shortSnippet = (snippet || '').slice(0, 80);
         messageElement.innerHTML = `
             <div class="message-header">
                 ${avatar}
                 <span class="username">${messageData.username}</span>
                 <span class="timestamp">${timestamp}</span>
+                <button class="reply-btn" title="Reply" data-id="${messageData.id}" data-username="${messageData.username}" data-snippet="${this.escapeHtml(shortSnippet)}" style="margin-left:auto;background:none;border:none;color:#b9bbbe;cursor:pointer;">↩</button>
             </div>
-            <div class="message-content">${textHtml}${img}</div>
+            <div class="message-content">${replyPreview}${textHtml}${img}</div>
         `;
         
         messagesContainer.appendChild(messageElement);
@@ -935,17 +1001,113 @@ class DiscordApp {
 
     async sendPhoto(file) {
         try {
+            if (this.inDM) {
+                alert('Image upload in Direct Messages is not available yet.');
+                return;
+            }
             const fd = new FormData();
             fd.append('photo', file);
             fd.append('roomId', this.currentRoom);
+            if (this.replyContext) {
+                fd.append('replyToId', this.replyContext.id || '');
+                fd.append('replyToUsername', this.replyContext.username || '');
+                fd.append('replyToSnippet', this.replyContext.snippet || '');
+            }
             const res = await fetch('/api/upload/photo', { method: 'POST', body: fd });
             const data = await res.json();
             if (!res.ok || !data.ok) {
                 throw new Error(data.error || 'Upload failed');
             }
+            this.clearReplyContext();
             // server will broadcast the message to the room
         } catch (e) {
             alert('Image upload failed: ' + e.message);
+        }
+    }
+
+    // --- DM helpers ---
+    openDM(username) {
+        if (!username || username === this.username) return;
+        this.inDM = true;
+        this.dmWith = username;
+        const channelName = document.getElementById('channelName');
+        if (channelName) channelName.textContent = `@ ${username}`;
+        this.clearMessages();
+        this.dmPartners.add(username);
+        this.updateDMsList();
+        if (this.socket) {
+            this.socket.emit('get-private-history', { with: username });
+        }
+    }
+
+    handlePrivateMessage(messageData) {
+        const other = messageData.username === this.username ? messageData.to : messageData.username;
+        if (other) {
+            this.dmPartners.add(other);
+            this.updateDMsList();
+        }
+        if (this.inDM && this.dmWith && (messageData.username === this.dmWith || messageData.to === this.dmWith || messageData.username === this.username)) {
+            this.displayPrivateMessage(messageData);
+        }
+    }
+
+    updateDMsList() {
+        const dmsList = document.getElementById('dmsList');
+        if (!dmsList) return;
+        const arr = Array.from(this.dmPartners.values()).sort((a,b)=> a.localeCompare(b));
+        dmsList.innerHTML = '';
+        for (const u of arr) {
+            const div = document.createElement('div');
+            div.className = 'user-item dm-item';
+            div.dataset.username = u;
+            div.innerHTML = `<span>@ ${this.escapeHtml(u)}</span>`;
+            dmsList.appendChild(div);
+        }
+    }
+
+    displayPrivateMessage(messageData) {
+        const messagesContainer = document.getElementById('messagesContainer');
+        const messageElement = document.createElement('div');
+        messageElement.className = 'message';
+        const timestamp = new Date(messageData.timestamp).toLocaleTimeString();
+        const textHtml = this.escapeHtml(messageData.message || '');
+        const replyPreview = (messageData.replyToUsername && messageData.replyToSnippet) ? `<div style="border-left:3px solid #5865f2;padding:6px 8px;margin-bottom:6px;background:#2f3136;border-radius:4px;">
+            <span style=\"color:#8e9297;\">Reply to ${this.escapeHtml(messageData.replyToUsername)}:</span>
+            <div style=\"color:#b9bbbe;\">${this.escapeHtml(messageData.replyToSnippet)}</div>
+        </div>` : '';
+        const avatar = messageData.avatarUrl ? `<img class=\"avatar\" src=\"${messageData.avatarUrl}\" alt=\"\">` : '';
+        const snippet = (messageData.message && messageData.message.trim()) ? messageData.message.trim() : '';
+        const shortSnippet = (snippet || '').slice(0, 80);
+        messageElement.innerHTML = `
+            <div class=\"message-header\">
+                ${avatar}
+                <span class=\"username\">${messageData.username}</span>
+                <span class=\"timestamp\">${timestamp}</span>
+                <button class=\"reply-btn\" title=\"Reply\" data-id=\"${messageData.id}\" data-username=\"${messageData.username}\" data-snippet=\"${this.escapeHtml(shortSnippet)}\" style=\"margin-left:auto;background:none;border:none;color:#b9bbbe;cursor:pointer;\">↩</button>
+            </div>
+            <div class=\"message-content\">${replyPreview}${textHtml}</div>
+        `;
+        messagesContainer.appendChild(messageElement);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    setReplyContext({ id, username, snippet }) {
+        this.replyContext = { id, username, snippet };
+        const replyBar = document.getElementById('replyBar');
+        const replyText = document.getElementById('replyText');
+        if (replyBar && replyText) {
+            replyText.textContent = `Replying to ${username}: ${snippet}`;
+            replyBar.style.display = 'block';
+        }
+    }
+
+    clearReplyContext() {
+        this.replyContext = null;
+        const replyBar = document.getElementById('replyBar');
+        const replyText = document.getElementById('replyText');
+        if (replyBar && replyText) {
+            replyText.textContent = '';
+            replyBar.style.display = 'none';
         }
     }
 

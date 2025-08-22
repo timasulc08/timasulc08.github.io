@@ -506,6 +506,10 @@
                 <div class="users-title">Online Users</div>
                 <div id="usersList"></div>
             </div>
+            <div class="users-section">
+                <div class="users-title">Direct Messages</div>
+                <div id="dmsList"></div>
+            </div>
         </div>
         <div id="sidebarOverlay" class="overlay"></div>
 
@@ -528,6 +532,10 @@
 
             <!-- Message Input -->
             <div class="message-input-container">
+                <div id="replyBar" style="display:none; background:#2f3136; border:1px solid #40444b; border-radius:6px; padding:8px 10px; margin-bottom:8px; font-size:13px; color:#b9bbbe;">
+                    <span id="replyText"></span>
+                    <button id="cancelReplyBtn" class="add-group-btn" style="margin-left:8px;">✖</button>
+                </div>
                 <div class="message-input-wrapper">
                     <input type="text" id="messageInput" class="message-input" placeholder="Type a message..." maxlength="500">
                     <input type="file" id="imageInput" accept="image/*" style="display:none" />
