@@ -138,6 +138,17 @@ class DiscordApp {
             this.sendMessage();
         });
         
+        const attachImageBtn = document.getElementById('attachImageBtn');
+        const imageInput = document.getElementById('imageInput');
+        if (attachImageBtn && imageInput) {
+            attachImageBtn.addEventListener('click', () => imageInput.click());
+            imageInput.addEventListener('change', (e) => {
+                const file = e.target.files && e.target.files[0];
+                if (file) this.sendPhoto(file);
+                imageInput.value = '';
+            });
+        }
+        
         // Call button events
         document.getElementById('voiceCallBtn').addEventListener('click', () => {
             this.initiateCall('voice');
@@ -170,6 +181,29 @@ class DiscordApp {
         }
         if (overlay) {
             overlay.addEventListener('click', closeSidebar);
+        }
+
+        // Avatar upload
+        const avatarBtn = document.getElementById('avatarBtn');
+        const avatarInput = document.getElementById('avatarInput');
+        if (avatarBtn && avatarInput) {
+            avatarBtn.addEventListener('click', () => avatarInput.click());
+            avatarInput.addEventListener('change', async (e) => {
+                const file = e.target.files && e.target.files[0];
+                if (!file) return;
+                try {
+                    const fd = new FormData();
+                    fd.append('avatar', file);
+                    const res = await fetch('/api/upload/avatar', { method: 'POST', body: fd });
+                    const data = await res.json();
+                    if (!res.ok || !data.ok) throw new Error(data.error || 'Upload failed');
+                    // Avatar updated on server; users-update will refresh via socket
+                } catch (err) {
+                    alert('Avatar upload failed: ' + err.message);
+                } finally {
+                    avatarInput.value = '';
+                }
+            });
         }
 
         // Invite link copy
@@ -464,8 +498,9 @@ class DiscordApp {
             if (user.username !== this.username) {
                 const userItem = document.createElement('div');
                 userItem.className = 'user-item';
+                const avatar = user.avatarUrl ? `<img class="avatar" src="${user.avatarUrl}" alt="">` : '';
                 userItem.innerHTML = `
-                    <span>${user.username}</span>
+                    <span style="display:flex;align-items:center;gap:8px;">${avatar}${user.username}</span>
                     <div class="status-indicator"></div>
                 `;
                 userItem.addEventListener('click', () => {
@@ -501,13 +536,17 @@ class DiscordApp {
         messageElement.className = 'message';
         
         const timestamp = new Date(messageData.timestamp).toLocaleTimeString();
+        const textHtml = this.escapeHtml(messageData.message || '');
+        const img = messageData.imageUrl ? `<div class="message-image"><a href="${messageData.imageUrl}" target="_blank" rel="noopener"><img src="${messageData.imageUrl}" alt="image" style="max-width:320px;border-radius:8px;display:block;margin-top:6px"></a></div>` : '';
         
+        const avatar = messageData.avatarUrl ? `<img class="avatar" src="${messageData.avatarUrl}" alt="">` : '';
         messageElement.innerHTML = `
             <div class="message-header">
+                ${avatar}
                 <span class="username">${messageData.username}</span>
                 <span class="timestamp">${timestamp}</span>
             </div>
-            <div class="message-content">${this.escapeHtml(messageData.message)}</div>
+            <div class="message-content">${textHtml}${img}</div>
         `;
         
         messagesContainer.appendChild(messageElement);
@@ -614,6 +653,8 @@ class DiscordApp {
         
         this.showCallModal(`${this.t('calling_prefix')} ${targetUsername}...`);
         this.updateCallModalButtons('calling');
+        this.ensureAudio();
+        this.startOutgoingRing();
     }
     
     handleIncomingCall(data) {
@@ -626,6 +667,7 @@ class DiscordApp {
         document.getElementById('callStatus').textContent = `${this.t('incoming')} ${callTypeText} ${this.t('call')}`;
         this.showCallModal();
         this.updateCallModalButtons('incoming');
+        this.startIncomingRingtone();
     }
     
     acceptCall() {
@@ -637,6 +679,7 @@ class DiscordApp {
             
             document.getElementById('callStatus').textContent = this.t('call_connecting');
             this.updateCallModalButtons('connecting');
+            this.stopRing();
         }
     }
     
@@ -647,6 +690,7 @@ class DiscordApp {
                 accepted: false
             });
             
+            this.stopRing();
             this.hideCallModal();
             this.currentCallId = null;
             this.currentCallerId = null;
@@ -667,12 +711,14 @@ class DiscordApp {
         
         document.getElementById('callStatus').textContent = this.t('call_in_progress');
         this.updateCallModalButtons('active');
+        this.stopRing();
         
         // Initialize WebRTC
         this.initializeWebRTC();
     }
     
     handleCallDeclined() {
+        this.stopRing();
         document.getElementById('callStatus').textContent = this.t('call_declined');
         setTimeout(() => {
             this.hideCallModal();
@@ -683,6 +729,7 @@ class DiscordApp {
     }
     
     handleCallEnded() {
+        this.stopRing();
         this.isInCall = false;
         this.currentCallId = null;
         this.currentCallerId = null;
@@ -884,5 +931,108 @@ class DiscordApp {
         if (remoteVideo.srcObject) {
             remoteVideo.srcObject = null;
         }
+    }
+
+    async sendPhoto(file) {
+        try {
+            const fd = new FormData();
+            fd.append('photo', file);
+            fd.append('roomId', this.currentRoom);
+            const res = await fetch('/api/upload/photo', { method: 'POST', body: fd });
+            const data = await res.json();
+            if (!res.ok || !data.ok) {
+                throw new Error(data.error || 'Upload failed');
+            }
+            // server will broadcast the message to the room
+        } catch (e) {
+            alert('Image upload failed: ' + e.message);
+        }
+    }
+
+    // --- Audio / Ringtone helpers ---
+    ensureAudio() {
+        if (!this._audioCtx) {
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (!Ctx) return; // unsupported
+            this._audioCtx = new Ctx();
+            this._ringGain = this._audioCtx.createGain();
+            this._ringGain.gain.value = 0.0;
+            this._ringGain.connect(this._audioCtx.destination);
+            this._osc = this._audioCtx.createOscillator();
+            this._osc.type = 'sine';
+            this._osc.frequency.value = 440; // A4
+            this._osc.connect(this._ringGain);
+            try { this._osc.start(); } catch {}
+        }
+        // Try resume if suspended
+        if (this._audioCtx && this._audioCtx.state === 'suspended') {
+            try { this._audioCtx.resume(); } catch {}
+        }
+    }
+
+    startOutgoingRing() {
+        this.stopRing();
+        if (!this._audioCtx) this.ensureAudio();
+        if (!this._audioCtx) return;
+        // Double-beep pattern: 200ms on, 200ms off, 200ms on, 1600ms off (2.2s)
+        this._ringMode = 'outgoing';
+        this._ringStep = 0; // 100ms ticks
+        this._ringInterval = setInterval(() => {
+            this._ringStep = (this._ringStep + 1) % 22;
+            const s = this._ringStep;
+            const on = (s < 2) || (s >= 4 && s < 6);
+            this._ringGain.gain.value = on ? 0.15 : 0.0;
+        }, 100);
+    }
+    
+    startIncomingRing() {
+    this.stopRing();
+    if (!this._audioCtx) this.ensureAudio();
+    if (!this._audioCtx) return;
+    // Ring pattern: 800ms on, 1200ms off (2s cycle)
+    this._ringMode = 'incoming';
+    this._ringStep = 0; // 100ms ticks
+    this._ringInterval = setInterval(() => {
+    this._ringStep = (this._ringStep + 1) % 20;
+    const on = this._ringStep < 8;
+    this._ringGain.gain.value = on ? 0.15 : 0.0;
+    }, 100);
+    }
+    
+    startIncomingRingtone() {
+    // Try to play ringtone.mp3 loop; fallback to oscillator ring if blocked
+    try {
+    if (!this._ringAudio) {
+    this._ringAudio = new Audio('/ringtone.mp3');
+    this._ringAudio.loop = true;
+    this._ringAudio.preload = 'auto';
+    this._ringAudio.volume = 0.5; // adjust as needed
+    }
+    this.stopRing();
+    const p = this._ringAudio.play();
+    if (p && typeof p.then === 'function') {
+    p.catch(() => {
+    // Autoplay blocked; fallback
+    this.ensureAudio();
+    this.startIncomingRing();
+    });
+    }
+    } catch (e) {
+    // Fallback to oscillator ring
+    this.ensureAudio();
+    this.startIncomingRing();
+    }
+    }
+    
+    stopRing() {
+        if (this._ringInterval) {
+            clearInterval(this._ringInterval);
+            this._ringInterval = null;
+        }
+        if (this._ringAudio) {
+            try { this._ringAudio.pause(); this._ringAudio.currentTime = 0; } catch {}
+        }
+        if (this._ringGain) this._ringGain.gain.value = 0.0;
+        this._ringMode = null;
     }
 }

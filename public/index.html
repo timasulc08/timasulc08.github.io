@@ -179,6 +179,9 @@
             gap: 10px;
             margin-bottom: 5px;
         }
+        .avatar {
+            width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background:#2f3136;
+        }
 
         .username {
             font-weight: 600;
@@ -485,6 +488,8 @@
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
                     <span>PivoGram</span>
                     <div style="display:flex; gap:6px;">
+                        <input type="file" id="avatarInput" accept="image/*" style="display:none" />
+                        <button id="avatarBtn" class="add-group-btn" title="Change avatar">🖼️</button>
                         <button id="inviteLinkBtn" class="add-group-btn" title="Copy invite link">🔗</button>
                         <button id="logoutBtn" class="add-group-btn" title="Logout">⎋</button>
                     </div>
@@ -525,6 +530,8 @@
             <div class="message-input-container">
                 <div class="message-input-wrapper">
                     <input type="text" id="messageInput" class="message-input" placeholder="Type a message..." maxlength="500">
+                    <input type="file" id="imageInput" accept="image/*" style="display:none" />
+                    <button id="attachImageBtn" class="send-btn" title="Attach image" style="background:#4f545c">📎</button>
                     <button id="sendBtn" class="send-btn">Send</button>
                 </div>
             </div>
