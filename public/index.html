@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PivoGram</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #36393f;
+            color: #dcddde;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .app-container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 240px;
+            background-color: #2f3136;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .groups-section {
+            border-bottom: 1px solid #40444b;
+            padding: 10px 0 10px 0;
+        }
+
+        .groups-title {
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #8e9297;
+            margin: 10px 15px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .group-item {
+            padding: 8px 12px;
+            margin: 2px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: background-color 0.2s;
+        }
+
+        .group-item:hover {
+            background-color: #40444b;
+        }
+
+        .group-item.active {
+            background-color: #3b3f45;
+        }
+
+        .add-group-btn {
+            background: none;
+            border: none;
+            color: #b9bbbe;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .add-group-btn:hover {
+            background-color: #40444b;
+            color: #dcddde;
+        }
+
+        .server-info {
+            padding: 15px;
+            border-bottom: 1px solid #40444b;
+            font-weight: bold;
+            background-color: #36393f;
+        }
+
+        .users-section {
+            flex: 1;
+            padding: 15px;
+        }
+
+        .users-title {
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #8e9297;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .user-item {
+            padding: 8px 12px;
+            margin: 2px 0;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: background-color 0.2s;
+        }
+
+        .user-item:hover {
+            background-color: #40444b;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #43b581;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-header {
+            height: 60px;
+            background-color: #36393f;
+            border-bottom: 1px solid #40444b;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+        }
+
+        .channel-name {
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .call-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .call-btn {
+            background: none;
+            border: none;
+            color: #b9bbbe;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+
+        .call-btn:hover {
+            background-color: #40444b;
+            color: #dcddde;
+        }
+
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .message {
+            margin-bottom: 15px;
+        }
+
+        .message-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 5px;
+        }
+
+        .username {
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .timestamp {
+            font-size: 12px;
+            color: #72767d;
+        }
+
+        .message-content {
+            color: #dcddde;
+            line-height: 1.4;
+        }
+
+        .message-input-container {
+            padding: 20px;
+            background-color: #40444b;
+        }
+
+        .message-input-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .message-input {
+            flex: 1;
+            background-color: #36393f;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: #dcddde;
+            font-size: 14px;
+        }
+
+        .message-input:focus {
+            outline: none;
+            background-color: #2f3136;
+        }
+
+        .send-btn {
+            background-color: #5865f2;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 20px;
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.2s;
+        }
+
+        .send-btn:hover {
+            background-color: #4752c4;
+        }
+
+        /* Modal styles */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background-color: #36393f;
+            padding: 30px;
+            border-radius: 8px;
+            text-align: center;
+            min-width: 300px;
+        }
+
+        .modal h2 {
+            margin-bottom: 20px;
+            color: #ffffff;
+        }
+
+        .modal input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 20px;
+            border: none;
+            border-radius: 4px;
+            background-color: #40444b;
+            color: #dcddde;
+            font-size: 14px;
+        }
+
+        .modal input:focus {
+            outline: none;
+            background-color: #2f3136;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .modal-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.2s;
+        }
+
+        .modal-btn.primary {
+            background-color: #5865f2;
+            color: white;
+        }
+
+        .modal-btn.primary:hover {
+            background-color: #4752c4;
+        }
+
+        .modal-btn.secondary {
+            background-color: #4f545c;
+            color: #dcddde;
+        }
+
+        .modal-btn.secondary:hover {
+            background-color: #5d6269;
+        }
+
+        .modal-btn.danger {
+            background-color: #ed4245;
+            color: white;
+        }
+
+        .modal-btn.danger:hover {
+            background-color: #c03537;
+        }
+
+        .call-modal .modal-content {
+            min-width: 400px;
+        }
+
+        .caller-info {
+            margin-bottom: 20px;
+        }
+
+        .caller-name {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .call-status {
+            color: #b9bbbe;
+            margin-bottom: 20px;
+        }
+
+        .video-container {
+            display: none;
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 300px;
+            height: 200px;
+            background-color: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            z-index: 999;
+        }
+
+        .video-container video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .local-video {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            width: 80px;
+            height: 60px;
+            border-radius: 4px;
+            border: 2px solid #5865f2;
+        }
+    </style>
+    <style>
+        /* Mobile responsiveness */
+        .menu-btn {
+            display: none;
+            background: none;
+            border: none;
+            color: #b9bbbe;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 22px;
+        }
+        .menu-btn:hover {
+            background-color: #40444b;
+            color: #dcddde;
+        }
+        .overlay { display: none; }
+
+        @media (max-width: 768px) {
+            body, .app-container { height: 100vh; }
+            @supports (height: 100dvh) {
+                body, .app-container { height: 100dvh; }
+            }
+
+            .menu-btn { display: inline-block; }
+
+            .sidebar {
+                position: fixed;
+                top: 0;
+                left: -85vw;
+                width: 80vw;
+                max-width: 320px;
+                height: 100%;
+                z-index: 1001;
+                box-shadow: 2px 0 12px rgba(0,0,0,0.4);
+                transition: left 0.2s ease;
+            }
+            .sidebar.open { left: 0; }
+
+            .overlay {
+                display: none;
+                position: fixed;
+                inset: 0;
+                background: rgba(0,0,0,0.55);
+                z-index: 1000;
+            }
+            .overlay.show { display: block; }
+
+            .group-item { padding: 12px 14px; }
+            .messages-container { padding: 12px; }
+
+            .message-input-container {
+                position: sticky;
+                bottom: 0;
+                padding: 12px;
+                padding-bottom: calc(12px + env(safe-area-inset-bottom));
+            }
+
+            .call-modal .modal-content, .modal .modal-content {
+                min-width: 90vw;
+            }
+
+            .video-container {
+                width: 100vw;
+                height: 40vh;
+                right: 0;
+                left: 0;
+                top: auto;
+                bottom: calc(60px + env(safe-area-inset-bottom));
+                border-radius: 0;
+            }
+        }
+
+        @supports (height: 100dvh) {
+            body, .app-container { height: 100dvh; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Auth Modal -->
+    <div id="loginModal" class="modal">
+        <div class="modal-content">
+            <h2 id="authTitle">Login</h2>
+            <input type="text" id="usernameInput" placeholder="Username (3-20 chars)" maxlength="20">
+            <input type="password" id="passwordInput" placeholder="Password (6-100 chars)" maxlength="100">
+            <div class="modal-buttons">
+                <button id="authPrimaryBtn" class="modal-btn primary">Login</button>
+                <button id="authToggleBtn" class="modal-btn secondary">Need an account? Register</button>
+            </div>
+            <div id="authError" style="color:#ed4245;margin-top:10px;display:none;"></div>
+        </div>
+    </div>
+
+    <!-- Call Modal -->
+    <div id="callModal" class="modal call-modal">
+        <div class="modal-content">
+            <div class="caller-info">
+                <div id="callerName" class="caller-name">Incoming Call</div>
+                <div id="callStatus" class="call-status">Connecting...</div>
+            </div>
+            <div class="modal-buttons">
+                <button id="acceptCall" class="modal-btn primary">Accept</button>
+                <button id="declineCall" class="modal-btn secondary">Decline</button>
+                <button id="endCall" class="modal-btn danger" style="display: none;">End Call</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div class="app-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="server-info">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                    <span>PivoGram</span>
+                    <div style="display:flex; gap:6px;">
+                        <button id="inviteLinkBtn" class="add-group-btn" title="Copy invite link">🔗</button>
+                        <button id="logoutBtn" class="add-group-btn" title="Logout">⎋</button>
+                    </div>
+                </div>
+            </div>
+            <div class="groups-section">
+                <div class="groups-title">
+                    <span>Groups</span>
+                    <button id="addGroupBtn" class="add-group-btn" title="Create group">＋</button>
+                </div>
+                <div id="groupsList"></div>
+            </div>
+            <div class="users-section">
+                <div class="users-title">Online Users</div>
+                <div id="usersList"></div>
+            </div>
+        </div>
+        <div id="sidebarOverlay" class="overlay"></div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Chat Header -->
+            <div class="chat-header">
+                <button id="mobileMenuBtn" class="menu-btn" title="Menu">☰</button>
+                <div class="channel-name" id="channelName"># general</div>
+                <div class="call-buttons">
+                    <button id="voiceCallBtn" class="call-btn" title="Voice Call">🎤</button>
+                    <button id="videoCallBtn" class="call-btn" title="Video Call">📹</button>
+                </div>
+            </div>
+
+            <!-- Messages -->
+            <div id="messagesContainer" class="messages-container">
+                <!-- Messages will be added here dynamically -->
+            </div>
+
+            <!-- Message Input -->
+            <div class="message-input-container">
+                <div class="message-input-wrapper">
+                    <input type="text" id="messageInput" class="message-input" placeholder="Type a message..." maxlength="500">
+                    <button id="sendBtn" class="send-btn">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Video Container -->
+    <div id="videoContainer" class="video-container">
+        <video id="remoteVideo" autoplay playsinline></video>
+        <video id="localVideo" class="local-video" autoplay playsinline muted></video>
+    </div>
+
+    <!-- Socket.IO -->
+    <script src="/socket.io/socket.io.js"></script>
+    <!-- Client JavaScript -->
+    <script src="/client.js"></script>
+    <script>
+        // Initialize the app
+        const app = new DiscordApp();
+    </script>
+</body>
+</html>
+</qodoArtifact>
