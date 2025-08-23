@@ -71,13 +71,20 @@
             border: none;
             color: #b9bbbe;
             cursor: pointer;
-            padding: 2px 6px;
-            border-radius: 4px;
+            padding: 6px 8px;
+            min-width: 32px;
+            min-height: 28px;
+            border-radius: 6px;
+            user-select: none;
         }
 
         .add-group-btn:hover {
             background-color: #40444b;
             color: #dcddde;
+        }
+        .add-group-btn:focus-visible, .call-btn:focus-visible, .menu-btn:focus-visible, .send-btn:focus-visible, .modal-btn:focus-visible {
+            outline: 2px solid #5865f2;
+            outline-offset: 2px;
         }
 
         .server-info {
@@ -86,6 +93,8 @@
             font-weight: bold;
             background-color: #36393f;
         }
+        .server-info > div > div { margin-left: auto; }
+        .groups-title .add-group-btn { margin-left: auto; }
 
         .users-section {
             flex: 1;
@@ -129,6 +138,9 @@
         }
 
         .chat-header {
+            position: sticky;
+            top: 0;
+            z-index: 20;
             height: 60px;
             background-color: #36393f;
             border-bottom: 1px solid #40444b;
@@ -147,6 +159,15 @@
             display: flex;
             gap: 10px;
         }
+
+        .header-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+        .header-icons { position: relative; }
+
+        /* Theme menu */
+        .theme-menu { position: absolute; right: 0; top: calc(100% + 8px); background: #2b2d31; border: 1px solid #3a3e45; border-radius: 8px; padding: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 4px; min-width: 160px; z-index: 50; }
+        .theme-menu .theme-item { background: transparent; color: #dcddde; border: 1px solid transparent; text-align: left; padding: 8px 10px; border-radius: 6px; cursor: pointer; }
+        .theme-menu .theme-item:hover { background: #3a3e45; }
+        .theme-menu .theme-item.active { border-color: #5865f2; }
 
         .call-btn {
             background: none;
@@ -371,6 +392,135 @@
             border-radius: 4px;
             border: 2px solid #5865f2;
         }
+
+        /* Enhanced UI */
+        .chat-header { background: linear-gradient(180deg, #3a3e44, #36393f); }
+        body { background: radial-gradient(1000px 600px at 10% -20%, #3b3f45, #36393f) fixed; }
+        .messages-container { padding: 18px 20px; }
+        .message { display: block; max-width: min(720px, 92%); }
+        .message:not(:last-child) { margin-bottom: 12px; }
+        .message .message-header { margin-bottom: 4px; }
+        .message .timestamp { font-size: 11px; color: #8e9297; }
+        .message .reply-btn { opacity: 0; transition: opacity .15s; }
+        .message:hover .reply-btn { opacity: 1; }
+        @media (hover: none) {
+            .message .reply-btn { opacity: 1; }
+        }
+        .message-content { background: #2b2d31; padding: 10px 12px; border-radius: 10px; border: 1px solid #3a3e45; box-shadow: 0 1px 0 rgba(0,0,0,0.25) inset; }
+        .message.mine { margin-left: auto; }
+        .message.mine .message-content { background: #3a3fdb1a; border-color: #4b51d6; }
+        .message-image img { border: 1px solid #3a3e45; border-radius: 10px; }
+        .message-content > div[style*="border-left:3px solid #5865f2"] { background: #23252a; border-color: #5865f2; }
+        .message-input { border: 1px solid #2b2d31; }
+        .send-btn { box-shadow: 0 2px 0 #3e46bb; }
+        .send-btn:active { transform: translateY(1px); box-shadow: 0 1px 0 #3e46bb; }
+
+        .group-item.active { box-shadow: inset 3px 0 0 #5865f2; }
+
+        .user-item:hover { background-color: #3a3e45; }
+        .dm-item { background: transparent; }
+        .dm-item:hover { background: #3a3e45; }
+
+        /* Scrollbar */
+        .messages-container::-webkit-scrollbar { width: 10px; }
+        .messages-container::-webkit-scrollbar-thumb { background: #2b2d31; border: 2px solid #36393f; border-radius: 8px; }
+        .messages-container::-webkit-scrollbar-track { background: transparent; }
+
+        /* Reply bar */
+        #replyBar { border-color: #3a3e45 !important; background: #2b2d31 !important; }
+
+        /* Keep buttons away from screen edges (safe areas) */
+        @supports (padding: max(0px)) {
+            .chat-header { 
+                padding-left: calc(20px + env(safe-area-inset-left));
+                padding-right: calc(20px + env(safe-area-inset-right));
+            }
+            .message-input-container {
+                padding-left: calc(20px + env(safe-area-inset-left));
+                padding-right: calc(20px + env(safe-area-inset-right));
+            }
+            .server-info {
+                padding-left: calc(15px + env(safe-area-inset-left));
+                padding-right: calc(15px + env(safe-area-inset-right));
+            }
+        }
+        .call-buttons { margin-right: 4px; }
+
+        /* New Interface (toggle) */
+        .new-ui .sidebar { background: rgba(32,34,37,0.8); backdrop-filter: blur(8px); border-right: 1px solid #2b2d31; }
+        .new-ui .server-info { background: transparent; border-bottom-color: #2b2d31; }
+        .new-ui .chat-header { background: rgba(44,47,51,0.7); backdrop-filter: blur(8px); border-bottom-color: transparent; }
+        .new-ui .main-content { background: linear-gradient(180deg, #2b2d31, #1f2124); }
+        .new-ui .messages-container { display: flex; flex-direction: column; align-items: center; padding: 24px 16px; }
+        .new-ui .message { width: 100%; max-width: 780px; }
+        .new-ui .message-content { background: #1f2124; border-color: #2b2f36; }
+        .new-ui .message-image img { border-color: #2b2f36; }
+        .new-ui .message .reply-btn { opacity: 1; color: #9aa0a6; }
+        .new-ui .message-input-container { background: transparent; border-top: 0; padding-top: 12px; padding-bottom: 16px; display:flex; justify-content:center; }
+        .new-ui .message-input-container .message-input-wrapper { width: 100%; max-width: 780px; margin: 0 auto; background: rgba(32,34,37,0.6); border: 1px solid #2b2f36; border-radius: 12px; padding: 10px; }
+        .new-ui .message-input { background: transparent; border: none; }
+        .new-ui .send-btn { border-radius: 10px; }
+        .new-ui .group-item.active { box-shadow: inset 4px 0 0 #6b74ff; background: #2b2d31; }
+        .new-ui .users-title { letter-spacing: .5px; }
+        .new-ui .user-item { border: 1px solid transparent; }
+        .new-ui .user-item:hover { border-color: #2b2f36; background: #23262b; }
+        .new-ui #replyBar { background: rgba(32,34,37,0.7) !important; border-color: #2b2f36 !important; }
+
+        /* Themes */
+        .theme-light body { background: #f2f3f5; color: #2e3338; }
+        .theme-light .sidebar { background: #ffffff; }
+        .theme-light .server-info { background: #ffffff; border-bottom-color: #e5e7eb; }
+        .theme-light .groups-section { border-bottom-color: #e5e7eb; }
+        .theme-light .groups-title, .theme-light .users-title { color: #6b7280; }
+        .theme-light .group-item:hover { background: #f3f4f6; }
+        .theme-light .group-item.active { background: #eef2ff; box-shadow: inset 3px 0 0 #4f46e5; }
+        .theme-light .chat-header { background: #ffffff; border-bottom-color: #e5e7eb; }
+        .theme-light .messages-container { background: #f2f3f5; }
+        .theme-light .message-content { background: #ffffff; border-color: #e5e7eb; color: #111827; }
+        .theme-light .message-image img { border-color: #e5e7eb; }
+        .theme-light .timestamp { color: #6b7280; }
+        .theme-light .message-content > div[style*="border-left:3px solid #5865f2"] { background: #f3f4f6 !important; border-color: #4f46e5 !important; }
+        .theme-light .message-input-container { background: #ffffff; }
+        .theme-light .message-input { background: #f9fafb; color: #111827; }
+        .theme-light .message-input:focus { background: #ffffff; }
+        .theme-light .send-btn { background-color: #4f46e5; }
+        .theme-light .send-btn:hover { background-color: #4338ca; }
+        .theme-light .add-group-btn { color: #4b5563; }
+        .theme-light .add-group-btn:hover { background: #e5e7eb; color: #111827; }
+        .theme-light .user-item:hover { background: #f3f4f6; }
+        .theme-light .messages-container::-webkit-scrollbar-thumb { background: #e5e7eb; border: 2px solid #f2f3f5; }
+        .theme-light .modal .modal-content { background: #ffffff; }
+        .theme-light .modal input { background: #f9fafb; color: #111827; }
+        .theme-light .modal-btn.secondary { background: #e5e7eb; color: #111827; }
+
+        /* Color accents for theme menu options */
+        .theme-blue .send-btn { background-color: #3b82f6; }
+        .theme-blue .send-btn:hover { background-color: #2563eb; }
+        .theme-blue .group-item.active { box-shadow: inset 3px 0 0 #3b82f6; }
+        .theme-blue .add-group-btn:focus-visible, .theme-blue .call-btn:focus-visible, .theme-blue .menu-btn:focus-visible, .theme-blue .send-btn:focus-visible, .theme-blue .modal-btn:focus-visible { outline-color: #3b82f6; }
+        .theme-blue .local-video { border-color: #3b82f6; }
+        .theme-blue .message-content > div[style*="border-left:3px solid"] { border-left-color: #3b82f6 !important; }
+
+        .theme-purple .send-btn { background-color: #8b5cf6; }
+        .theme-purple .send-btn:hover { background-color: #7c3aed; }
+        .theme-purple .group-item.active { box-shadow: inset 3px 0 0 #8b5cf6; }
+        .theme-purple .add-group-btn:focus-visible, .theme-purple .call-btn:focus-visible, .theme-purple .menu-btn:focus-visible, .theme-purple .send-btn:focus-visible, .theme-purple .modal-btn:focus-visible { outline-color: #8b5cf6; }
+        .theme-purple .local-video { border-color: #8b5cf6; }
+        .theme-purple .message-content > div[style*="border-left:3px solid"] { border-left-color: #8b5cf6 !important; }
+
+        .theme-green .send-btn { background-color: #10b981; }
+        .theme-green .send-btn:hover { background-color: #059669; }
+        .theme-green .group-item.active { box-shadow: inset 3px 0 0 #10b981; }
+        .theme-green .add-group-btn:focus-visible, .theme-green .call-btn:focus-visible, .theme-green .menu-btn:focus-visible, .theme-green .send-btn:focus-visible, .theme-green .modal-btn:focus-visible { outline-color: #10b981; }
+        .theme-green .local-video { border-color: #10b981; }
+        .theme-green .message-content > div[style*="border-left:3px solid"] { border-left-color: #10b981 !important; }
+
+        .theme-dark .send-btn { background-color: #6b7280; }
+        .theme-dark .send-btn:hover { background-color: #4b5563; }
+        .theme-dark .group-item.active { box-shadow: inset 3px 0 0 #6b7280; }
+        .theme-dark .add-group-btn:focus-visible, .theme-dark .call-btn:focus-visible, .theme-dark .menu-btn:focus-visible, .theme-dark .send-btn:focus-visible, .theme-dark .modal-btn:focus-visible { outline-color: #6b7280; }
+        .theme-dark .local-video { border-color: #6b7280; }
+        .theme-dark .message-content > div[style*="border-left:3px solid"] { border-left-color: #6b7280 !important; }
     </style>
     <style>
         /* Mobile responsiveness */
@@ -427,6 +577,8 @@
                 position: sticky;
                 bottom: 0;
                 padding: 12px;
+                padding-left: calc(12px + env(safe-area-inset-left));
+                padding-right: calc(12px + env(safe-area-inset-right));
                 padding-bottom: calc(12px + env(safe-area-inset-bottom));
             }
 
@@ -487,12 +639,6 @@
             <div class="server-info">
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
                     <span>PivoGram</span>
-                    <div style="display:flex; gap:6px;">
-                        <input type="file" id="avatarInput" accept="image/*" style="display:none" />
-                        <button id="avatarBtn" class="add-group-btn" title="Change avatar">🖼️</button>
-                        <button id="inviteLinkBtn" class="add-group-btn" title="Copy invite link">🔗</button>
-                        <button id="logoutBtn" class="add-group-btn" title="Logout">⎋</button>
-                    </div>
                 </div>
             </div>
             <div class="groups-section">
@@ -519,9 +665,33 @@
             <div class="chat-header">
                 <button id="mobileMenuBtn" class="menu-btn" title="Menu">☰</button>
                 <div class="channel-name" id="channelName"># general</div>
-                <div class="call-buttons">
-                    <button id="voiceCallBtn" class="call-btn" title="Voice Call">🎤</button>
-                    <button id="videoCallBtn" class="call-btn" title="Video Call">📹</button>
+                <div class="header-actions">
+                    <div class="call-buttons">
+                        <button id="voiceCallBtn" class="call-btn" title="Voice Call">🎤</button>
+                        <button id="videoCallBtn" class="call-btn" title="Video Call">📹</button>
+                    </div>
+                    <div class="header-icons" style="display:flex; gap:6px; margin-left:12px;">
+                        <input type="file" id="avatarInput" accept="image/*" style="display:none" />
+                        <button id="avatarBtn" class="add-group-btn" title="Change avatar">🖼️</button>
+                        <button id="inviteLinkBtn" class="add-group-btn" title="Copy invite link">🔗</button>
+                        <button id="themeMenuBtn" class="add-group-btn" title="Themes">🎨</button>
+                        <div id="themeMenu" class="theme-menu" style="display:none;">
+                            <button class="theme-item" data-theme="blue">Blue</button>
+                            <button class="theme-item" data-theme="purple">Purple</button>
+                            <button class="theme-item" data-theme="green">Green</button>
+                            <button class="theme-item" data-theme="dark">Dark</button>
+                            <div style="height:1px;background:#3a3e45;margin:4px 0;"></div>
+                            <button class="theme-item" data-theme="custom">Custom background…</button>
+                            <input type="color" id="bgColorPicker" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" />
+                            <button class="theme-item" data-theme="custom-sidebar">Custom left menu…</button>
+                            <input type="color" id="sidebarColorPicker" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" />
+                            <button class="theme-item" data-theme="custom-header">Custom top bar…</button>
+                            <input type="color" id="headerColorPicker" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" />
+                            <button class="theme-item" data-theme="custom-bottom">Custom bottom bar…</button>
+                            <input type="color" id="bottomColorPicker" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" />
+                        </div>
+                        <button id="logoutBtn" class="add-group-btn" title="Logout">⎋</button>
+                    </div>
                 </div>
             </div>
 
@@ -559,6 +729,165 @@
     <script>
         // Initialize the app
         const app = new DiscordApp();
+        // UI toggle persistence
+        (function(){
+            try {
+                const key = 'uiNew';
+                const apply = (on) => {
+                    document.body.classList.toggle('new-ui', !!on);
+                    localStorage.setItem(key, on ? '1' : '0');
+                };
+                // Apply saved mode
+                apply(localStorage.getItem(key) === '1');
+                const btn = document.getElementById('uiToggleBtn');
+                if (btn) {
+                    btn.addEventListener('click', () => {
+                        const enabled = document.body.classList.contains('new-ui');
+                        apply(!enabled);
+                        // quick feedback
+                        btn.textContent = enabled ? '✨' : '⭐';
+                        setTimeout(() => btn.textContent = '✨', 800);
+                    });
+                }
+            } catch(e) { }
+        })();
+        // Theme menu
+        (function(){
+            try {
+                const key = 'themeName';
+                const themes = ['blue','purple','green','dark'];
+                const btn = document.getElementById('themeMenuBtn');
+                const menu = document.getElementById('themeMenu');
+                const colorInput = document.getElementById('bgColorPicker');
+                const sidebarInput = document.getElementById('sidebarColorPicker');
+                const headerInput = document.getElementById('headerColorPicker');
+                const bottomInput = document.getElementById('bottomColorPicker');
+                const toggleMenu = (show) => { if (menu) menu.style.display = show ? 'block' : 'none'; };
+                let open = false;
+
+                const clearInlineBg = () => {
+                    try {
+                        document.body.style.background = '';
+                        const mc = document.querySelector('.main-content');
+                        if (mc) mc.style.background = '';
+                    } catch {}
+                };
+                const applyThemeClass = (name) => {
+                    themes.forEach(n => document.body.classList.remove('theme-' + n));
+                    document.body.classList.remove('theme-light');
+                    if (name && themes.includes(name)) {
+                        document.body.classList.add('theme-' + name);
+                    }
+                };
+                const updateActive = (activeName) => {
+                    if (!menu) return;
+                    menu.querySelectorAll('.theme-item').forEach(el => {
+                        el.classList.toggle('active', el.dataset.theme === activeName);
+                    });
+                };
+                const setCustom = (color) => {
+                    try {
+                        applyThemeClass(null);
+                        document.body.style.background = color;
+                        const mc = document.querySelector('.main-content');
+                        if (mc) mc.style.background = color;
+                        localStorage.setItem('customBg', color);
+                        localStorage.setItem(key, 'custom');
+                        updateActive('custom');
+                    } catch {}
+                };
+                const setSidebar = (color) => {
+                    try {
+                        const sb = document.querySelector('.sidebar');
+                        if (sb) sb.style.background = color;
+                        const si = document.querySelector('.server-info');
+                        if (si) si.style.background = color;
+                        localStorage.setItem('customSidebarBg', color);
+                    } catch {}
+                };
+                const setHeader = (color) => {
+                    try {
+                        const ch = document.querySelector('.chat-header');
+                        if (ch) ch.style.background = color;
+                        localStorage.setItem('customHeaderBg', color);
+                    } catch {}
+                };
+                const setBottom = (color) => {
+                    try {
+                        const bc = document.querySelector('.message-input-container');
+                        if (bc) bc.style.background = color;
+                        localStorage.setItem('customBottomBg', color);
+                    } catch {}
+                };
+                const apply = (name) => {
+                    if (name === 'custom') {
+                        const stored = localStorage.getItem('customBg') || '#36393f';
+                        setCustom(stored);
+                        return;
+                    }
+                    clearInlineBg();
+                    applyThemeClass(name);
+                    localStorage.setItem(key, name);
+                    updateActive(name);
+                };
+
+                const saved = localStorage.getItem(key) || 'blue';
+                apply(saved);
+                // Re-apply saved custom sidebar/header if present
+                const savedSidebar = localStorage.getItem('customSidebarBg');
+                if (savedSidebar) setSidebar(savedSidebar);
+                const savedHeader = localStorage.getItem('customHeaderBg');
+                if (savedHeader) setHeader(savedHeader);
+                const savedBottom = localStorage.getItem('customBottomBg');
+                if (savedBottom) setBottom(savedBottom);
+
+                if (btn && menu) {
+                    btn.addEventListener('click', (e) => { e.stopPropagation(); open = !open; toggleMenu(open); });
+                    menu.addEventListener('click', (e) => {
+                        const item = e.target.closest('.theme-item');
+                        if (!item) return;
+                        const t = item.dataset.theme;
+                        if (t === 'custom') {
+                            if (colorInput) colorInput.click();
+                        } else if (t === 'custom-sidebar') {
+                            if (sidebarInput) sidebarInput.click();
+                        } else if (t === 'custom-header') {
+                            if (headerInput) headerInput.click();
+                        } else if (t === 'custom-bottom') {
+                            if (bottomInput) bottomInput.click();
+                        } else {
+                            apply(t);
+                        }
+                        open = false; toggleMenu(false);
+                    });
+                    if (colorInput) {
+                        colorInput.addEventListener('input', (e) => {
+                            const color = e.target.value || '#36393f';
+                            setCustom(color);
+                        });
+                    }
+                    if (sidebarInput) {
+                        sidebarInput.addEventListener('input', (e) => {
+                            const color = e.target.value || '#2f3136';
+                            setSidebar(color);
+                        });
+                    }
+                    if (headerInput) {
+                        headerInput.addEventListener('input', (e) => {
+                            const color = e.target.value || '#36393f';
+                            setHeader(color);
+                        });
+                    }
+                    if (bottomInput) {
+                        bottomInput.addEventListener('input', (e) => {
+                            const color = e.target.value || '#40444b';
+                            setBottom(color);
+                        });
+                    }
+                    document.addEventListener('click', () => { if (open) { open = false; toggleMenu(false); } });
+                }
+            } catch(e) { }
+        })();
     </script>
 </body>
 </html>

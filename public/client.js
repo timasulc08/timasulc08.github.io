@@ -63,7 +63,12 @@ class DiscordApp {
                 call_declined: 'Call declined',
                 call_in_progress: 'Call in progress...',
                 could_not_access_media: 'Could not access camera/microphone. Please check permissions.',
-                calling_prefix: 'Calling'
+                calling_prefix: 'Calling',
+                direct_messages_title: 'Direct Messages',
+                reply: 'Reply',
+                reply_to_label: 'Reply to',
+                replying_to_label: 'Replying to',
+                photo_label: 'Photo'
             },
             ru: {
                 server_name: 'PivoGram',
@@ -100,7 +105,12 @@ class DiscordApp {
                 call_declined: 'Звонок отклонен',
                 call_in_progress: 'Идет звонок...',
                 could_not_access_media: 'Не удалось получить доступ к камере/микрофону. Проверьте разрешения.',
-                calling_prefix: 'Звонок'
+                calling_prefix: 'Звонок',
+                direct_messages_title: 'Личные сообщения',
+                reply: 'Ответить',
+                reply_to_label: 'Ответ на',
+                replying_to_label: 'Ответ пользователю',
+                photo_label: 'Фото'
             }
         };
         
@@ -598,19 +608,19 @@ class DiscordApp {
         const textHtml = this.escapeHtml(messageData.message || '');
         const img = messageData.imageUrl ? `<div class="message-image"><a href="${messageData.imageUrl}" target="_blank" rel="noopener"><img src="${messageData.imageUrl}" alt="image" style="max-width:320px;border-radius:8px;display:block;margin-top:6px"></a></div>` : '';
         const replyPreview = (messageData.replyToUsername && messageData.replyToSnippet) ? `<div style="border-left:3px solid #5865f2;padding:6px 8px;margin-bottom:6px;background:#2f3136;border-radius:4px;">
-            <span style="color:#8e9297;">Reply to ${this.escapeHtml(messageData.replyToUsername)}:</span>
+            <span style="color:#8e9297;">${this.t('reply_to_label')} ${this.escapeHtml(messageData.replyToUsername)}:</span>
             <div style="color:#b9bbbe;">${this.escapeHtml(messageData.replyToSnippet)}</div>
         </div>` : '';
         
         const avatar = messageData.avatarUrl ? `<img class="avatar" src="${messageData.avatarUrl}" alt="">` : '';
-        const snippet = (messageData.message && messageData.message.trim()) ? messageData.message.trim() : (messageData.imageUrl ? 'Photo' : '');
+        const snippet = (messageData.message && messageData.message.trim()) ? messageData.message.trim() : (messageData.imageUrl ? this.t('photo_label', 'Photo') : '');
         const shortSnippet = (snippet || '').slice(0, 80);
         messageElement.innerHTML = `
             <div class="message-header">
                 ${avatar}
                 <span class="username">${messageData.username}</span>
                 <span class="timestamp">${timestamp}</span>
-                <button class="reply-btn" title="Reply" data-id="${messageData.id}" data-username="${messageData.username}" data-snippet="${this.escapeHtml(shortSnippet)}" style="margin-left:auto;background:none;border:none;color:#b9bbbe;cursor:pointer;">↩</button>
+                <button class="reply-btn" title="${this.t('reply')}" data-id="${messageData.id}" data-username="${messageData.username}" data-snippet="${this.escapeHtml(shortSnippet)}" style="margin-left:auto;background:none;border:none;color:#b9bbbe;cursor:pointer;">↩</button>
             </div>
             <div class="message-content">${replyPreview}${textHtml}${img}</div>
         `;
@@ -671,8 +681,9 @@ class DiscordApp {
             // Section titles
             const groupsTitle = document.querySelector('.groups-title span');
             if (groupsTitle) groupsTitle.textContent = this.t('groups_title', groupsTitle.textContent);
-            const usersTitle = document.querySelector('.users-title');
-            if (usersTitle) usersTitle.textContent = this.t('online_users', usersTitle.textContent);
+            const userTitles = document.querySelectorAll('.users-section .users-title');
+            if (userTitles[0]) userTitles[0].textContent = this.t('online_users', userTitles[0].textContent);
+            if (userTitles[1]) userTitles[1].textContent = this.t('direct_messages_title', userTitles[1].textContent);
 
             // Chat input
             setPlaceholder('messageInput', 'message_placeholder');
@@ -1072,7 +1083,7 @@ class DiscordApp {
         const timestamp = new Date(messageData.timestamp).toLocaleTimeString();
         const textHtml = this.escapeHtml(messageData.message || '');
         const replyPreview = (messageData.replyToUsername && messageData.replyToSnippet) ? `<div style="border-left:3px solid #5865f2;padding:6px 8px;margin-bottom:6px;background:#2f3136;border-radius:4px;">
-            <span style=\"color:#8e9297;\">Reply to ${this.escapeHtml(messageData.replyToUsername)}:</span>
+            <span style=\"color:#8e9297;\">${this.t('reply_to_label')} ${this.escapeHtml(messageData.replyToUsername)}:</span>
             <div style=\"color:#b9bbbe;\">${this.escapeHtml(messageData.replyToSnippet)}</div>
         </div>` : '';
         const avatar = messageData.avatarUrl ? `<img class=\"avatar\" src=\"${messageData.avatarUrl}\" alt=\"\">` : '';
@@ -1083,7 +1094,7 @@ class DiscordApp {
                 ${avatar}
                 <span class=\"username\">${messageData.username}</span>
                 <span class=\"timestamp\">${timestamp}</span>
-                <button class=\"reply-btn\" title=\"Reply\" data-id=\"${messageData.id}\" data-username=\"${messageData.username}\" data-snippet=\"${this.escapeHtml(shortSnippet)}\" style=\"margin-left:auto;background:none;border:none;color:#b9bbbe;cursor:pointer;\">↩</button>
+                <button class=\"reply-btn\" title=\"${this.t('reply')}\" data-id=\"${messageData.id}\" data-username=\"${messageData.username}\" data-snippet=\"${this.escapeHtml(shortSnippet)}\" style=\"margin-left:auto;background:none;border:none;color:#b9bbbe;cursor:pointer;\">↩</button>
             </div>
             <div class=\"message-content\">${replyPreview}${textHtml}</div>
         `;
@@ -1096,7 +1107,7 @@ class DiscordApp {
         const replyBar = document.getElementById('replyBar');
         const replyText = document.getElementById('replyText');
         if (replyBar && replyText) {
-            replyText.textContent = `Replying to ${username}: ${snippet}`;
+            replyText.textContent = `${this.t('replying_to_label')} ${username}: ${snippet}`;
             replyBar.style.display = 'block';
         }
     }
