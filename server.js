@@ -429,7 +429,9 @@ io.on('connection', (socket) => {
         users.set(socket.id, {
             id: socket.id,
             username: data.username,
-            currentRoom: null
+            currentRoom: null,
+            online: true,
+            lastSeen: new Date()
         });
         
         // Broadcast updated users list
@@ -730,6 +732,18 @@ io.on('connection', (socket) => {
         });
     });
 
+    // Handle admin notifications
+    socket.on('admin-notification', (message) => {
+        const user = users.get(socket.id);
+        if (user && getUserRole(user.username) === 'admin') {
+            io.emit('admin-notification', {
+                message: message,
+                from: user.username,
+                timestamp: new Date().toISOString()
+            });
+        }
+    });
+    
     // Handle disconnection
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
@@ -743,14 +757,26 @@ io.on('connection', (socket) => {
             activeCalls.delete(callId);
         }
         
-        // Remove user from all rooms and users list
+        // Mark user as offline instead of removing
+        const user = users.get(socket.id);
+        if (user) {
+            user.online = false;
+            user.lastSeen = new Date();
+        }
+        
+        // Remove user from all rooms
         for (const [roomId, members] of rooms.entries()) {
             if (members.delete(socket.id) && members.size === 0) {
                 rooms.delete(roomId);
             }
         }
         
-        users.delete(socket.id);
+        // Keep user in list but mark as offline
+        setTimeout(() => {
+            users.delete(socket.id);
+            broadcastUsersList();
+        }, 5000); // Remove after 5 seconds
+        
         broadcastUsersList();
         broadcastGroupsList();
     });
@@ -771,6 +797,8 @@ io.on('connection', (socket) => {
             currentRoom: u.currentRoom,
             avatarUrl: avatars.get(u.username) || null,
             role: getUserRole(u.username),
+            online: u.online || false,
+            lastSeen: u.lastSeen || new Date()
         }));
         io.emit('users-update', usersList);
     }
