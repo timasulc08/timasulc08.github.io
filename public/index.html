@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
     <title>PivoGram</title>
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#5865f2">
@@ -1572,6 +1572,27 @@
             }
         }
 
+        /* Keyboard fix for mobile */
+        @media (max-width: 768px) {
+            .app-container {
+                height: 100vh;
+                height: 100dvh;
+                overflow: hidden;
+            }
+            
+            .main-content {
+                height: 100%;
+                display: flex;
+                flex-direction: column;
+            }
+            
+            .messages-container {
+                flex: 1;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+        }
+        
         /* Safe area support for newer phones */
         @supports (padding: max(0px)) {
             @media (max-width: 768px) {
@@ -1735,7 +1756,18 @@
                 setTimeout(() => {
                     const container = document.getElementById('messagesContainer');
                     if (container) container.scrollTop = container.scrollHeight;
+                    // Скролл к полю ввода
+                    messageInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }, 300);
+            });
+            
+            // Фикс высоты при появлении клавиатуры
+            window.addEventListener('resize', () => {
+                if (document.activeElement === messageInput) {
+                    setTimeout(() => {
+                        messageInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 100);
+                }
             });
         }
         // Theme system
