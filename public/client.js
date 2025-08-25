@@ -184,6 +184,30 @@ class DiscordApp {
                     this.startEditMessage(id, currentMessage);
                 }
             });
+            
+            // Долгое нажатие для мобильных
+            let longPressTimer;
+            messagesContainer.addEventListener('touchstart', (e) => {
+                const messageEl = e.target.closest('.message');
+                if (messageEl && messageEl.classList.contains('mine')) {
+                    longPressTimer = setTimeout(() => {
+                        const id = messageEl.dataset.messageId;
+                        const contentEl = messageEl.querySelector('.message-content');
+                        const message = contentEl ? contentEl.textContent.replace('(изменено)', '').trim() : '';
+                        if (id && message) {
+                            this.startEditMessage(id, message);
+                        }
+                    }, 500);
+                }
+            });
+            
+            messagesContainer.addEventListener('touchend', () => {
+                clearTimeout(longPressTimer);
+            });
+            
+            messagesContainer.addEventListener('touchmove', () => {
+                clearTimeout(longPressTimer);
+            });
         }
         const cancelReplyBtn = document.getElementById('cancelReplyBtn');
         if (cancelReplyBtn) {
