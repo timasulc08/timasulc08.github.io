@@ -1258,17 +1258,12 @@ class DiscordApp {
             editBar.style.display = 'block';
         }
         
-        // Принудительный скролл на мобильных
+        // Простой скролл на мобильных
         if (messageInput) {
             messageInput.focus();
             setTimeout(() => {
-                messageInput.scrollIntoView({ behavior: 'smooth', block: 'end' });
                 window.scrollTo(0, document.body.scrollHeight);
-            }, 100);
-            
-            setTimeout(() => {
-                messageInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }, 500);
+            }, 200);
         }
     }
     
