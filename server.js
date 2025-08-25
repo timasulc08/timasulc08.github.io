@@ -126,24 +126,31 @@ function loadRolesFromFile() {
         if (!fs.existsSync(DATA_DIR)) {
             fs.mkdirSync(DATA_DIR, { recursive: true });
         }
-        if (!fs.existsSync(ROLES_FILE)) {
-            // Create default roles file with admin user
-            const defaultRoles = { "admin": "admin" };
-            fs.writeFileSync(ROLES_FILE, JSON.stringify(defaultRoles, null, 2), 'utf8');
-        }
-        const raw = fs.readFileSync(ROLES_FILE, 'utf8').trim();
-        const obj = raw ? JSON.parse(raw) : {};
+        
         userRoles.clear();
-        for (const [uname, role] of Object.entries(obj)) {
-            userRoles.set(uname, role);
+        userRoles.set('admin', 'admin');
+        
+        if (fs.existsSync(ROLES_FILE)) {
+            try {
+                const raw = fs.readFileSync(ROLES_FILE, 'utf8').trim();
+                if (raw && raw.length > 0) {
+                    const obj = JSON.parse(raw);
+                    userRoles.clear();
+                    for (const [uname, role] of Object.entries(obj)) {
+                        userRoles.set(uname, role);
+                    }
+                }
+            } catch (parseError) {
+                console.log('Invalid roles file, using defaults');
+            }
         }
+        
+        saveRolesToFile();
         console.log(`Loaded ${userRoles.size} user role(s)`);
     } catch (e) {
         console.error('Failed to load roles file', e);
-        // Reset to default on error
         userRoles.clear();
         userRoles.set('admin', 'admin');
-        saveRolesToFile();
     }
 }
 
