@@ -682,13 +682,19 @@ class DiscordApp {
                     <span class="${usernameClass}">${messageData.username}</span>
                     <span class="timestamp">${timestamp}</span>
                 </div>
-                <div class="message-content">${replyPreview}${textHtml}${img}</div>
+                <div class="message-content" style="position:relative;">
+                    ${replyPreview}${textHtml}${img}
+                    <button class="reply-btn" title="${this.t('reply')}" data-id="${messageData.id}" data-username="${messageData.username}" data-snippet="${this.escapeHtml(shortSnippet)}" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.5);border:none;color:white;padding:4px 6px;border-radius:12px;font-size:12px;">↩</button>
+                </div>
             `;
             
         } else if (isPhoneMode && isOwnMessage) {
-            // Hide header for own messages in phone mode
+            // Show edit button for own messages in phone mode
             messageElement.innerHTML = `
-                <div class="message-content">${replyPreview}${textHtml}${img}</div>
+                <div class="message-content" style="position:relative;">
+                    ${replyPreview}${textHtml}${img}
+                    <button class="edit-btn" title="${this.t('edit', 'Редактировать')}" data-id="${messageData.id}" data-message="${this.escapeHtml(messageData.message || '')}" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.5);border:none;color:white;padding:4px 6px;border-radius:12px;font-size:12px;">✏️</button>
+                </div>
             `;
         } else {
             // Desktop mode - show full header with reply and edit buttons
