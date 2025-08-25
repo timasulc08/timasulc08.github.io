@@ -265,16 +265,54 @@ class DiscordApp {
         };
         if (mobileMenuBtn) {
             mobileMenuBtn.addEventListener('click', () => {
-                if (sidebar?.classList.contains('open')) {
-                    closeSidebar();
-                } else {
-                    openSidebar();
-                }
+                const sidebar = document.querySelector('.sidebar');
+                const overlay = document.getElementById('sidebarOverlay');
+                sidebar?.classList.add('open');
+                overlay?.classList.add('show');
             });
         }
+        
+        // Theme menu function
+        window.showThemeMenu = function(menuElement) {
+            menuElement.innerHTML = `
+                <div class="mobile-menu-content">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:20px;">
+                        <button class="mobile-menu-item" onclick="changeTheme('default'); this.closest('.mobile-menu').remove();">
+                            💫
+                            <span>Default</span>
+                        </button>
+                        <button class="mobile-menu-item" onclick="changeTheme('green'); this.closest('.mobile-menu').remove();">
+                            💚
+                            <span>Green</span>
+                        </button>
+                        <button class="mobile-menu-item" onclick="changeTheme('purple'); this.closest('.mobile-menu').remove();">
+                            💜
+                            <span>Purple</span>
+                        </button>
+                        <button class="mobile-menu-item" onclick="changeTheme('blue'); this.closest('.mobile-menu').remove();">
+                            💙
+                            <span>Blue</span>
+                        </button>
+                        <button class="mobile-menu-item" onclick="changeTheme('red'); this.closest('.mobile-menu').remove();">
+                            ❤️
+                            <span>Red</span>
+                        </button>
+                    </div>
+                    <button class="mobile-menu-close" onclick="this.closest('.mobile-menu').remove()">Close</button>
+                </div>
+            `;
+        };
+        
+        // Change theme function
+        window.changeTheme = function(theme) {
+            document.getElementById('themeSelector').value = theme;
+            document.getElementById('themeSelector').dispatchEvent(new Event('change'));
+        };
         if (overlay) {
             overlay.addEventListener('click', closeSidebar);
         }
+        
+
 
         // Avatar upload
         const avatarBtn = document.getElementById('avatarBtn');
@@ -1474,10 +1512,8 @@ class DiscordApp {
 
     // Phone mode detection
     isPhoneMode() {
-        // Check if we're on a touch device with small screen
-        return window.innerWidth <= 768 && 
-               ('ontouchstart' in window || navigator.maxTouchPoints > 0) &&
-               !window.matchMedia('(hover: hover)').matches;
+        // Force phone mode on screens <= 768px
+        return window.innerWidth <= 768;
     }
     
     // Get last seen text
