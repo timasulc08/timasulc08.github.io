@@ -547,8 +547,9 @@ class DiscordApp {
                 const userItem = document.createElement('div');
                 userItem.className = 'user-item';
                 const avatar = user.avatarUrl ? `<img class="avatar" src="${user.avatarUrl}" alt="">` : '';
+                const usernameClass = user.role === 'admin' ? 'username admin' : 'username';
                 userItem.innerHTML = `
-                    <span style="display:flex;align-items:center;gap:8px;">${avatar}${user.username}</span>
+                    <span style="display:flex;align-items:center;gap:8px;">${avatar}<span class="${usernameClass}">${user.username}</span></span>
                     <div class="status-indicator"></div>
                 `;
                 userItem.addEventListener('click', () => {
@@ -602,7 +603,10 @@ class DiscordApp {
     displayMessage(messageData) {
         const messagesContainer = document.getElementById('messagesContainer');
         const messageElement = document.createElement('div');
-        messageElement.className = 'message';
+        
+        // Check if this is the user's own message for phone mode
+        const isOwnMessage = messageData.username === this.username;
+        messageElement.className = `message ${isOwnMessage ? 'mine' : 'other'}`;
         
         const timestamp = new Date(messageData.timestamp).toLocaleTimeString();
         const textHtml = this.escapeHtml(messageData.message || '');
@@ -613,17 +617,40 @@ class DiscordApp {
         </div>` : '';
         
         const avatar = messageData.avatarUrl ? `<img class="avatar" src="${messageData.avatarUrl}" alt="">` : '';
+        const usernameClass = messageData.role === 'admin' ? 'username admin' : 'username';
         const snippet = (messageData.message && messageData.message.trim()) ? messageData.message.trim() : (messageData.imageUrl ? this.t('photo_label', 'Photo') : '');
         const shortSnippet = (snippet || '').slice(0, 80);
-        messageElement.innerHTML = `
-            <div class="message-header">
-                ${avatar}
-                <span class="username">${messageData.username}</span>
-                <span class="timestamp">${timestamp}</span>
-                <button class="reply-btn" title="${this.t('reply')}" data-id="${messageData.id}" data-username="${messageData.username}" data-snippet="${this.escapeHtml(shortSnippet)}" style="margin-left:auto;background:none;border:none;color:#b9bbbe;cursor:pointer;">↩</button>
-            </div>
-            <div class="message-content">${replyPreview}${textHtml}${img}</div>
-        `;
+        
+        // Check if we're in phone mode
+        const isPhoneMode = this.isPhoneMode();
+        
+        if (isPhoneMode && !isOwnMessage) {
+            // Show header for other people's messages in phone mode
+            messageElement.innerHTML = `
+                <div class="message-header">
+                    ${avatar}
+                    <span class="${usernameClass}">${messageData.username}</span>
+                    <span class="timestamp">${timestamp}</span>
+                </div>
+                <div class="message-content">${replyPreview}${textHtml}${img}</div>
+            `;
+        } else if (isPhoneMode && isOwnMessage) {
+            // Hide header for own messages in phone mode
+            messageElement.innerHTML = `
+                <div class="message-content">${replyPreview}${textHtml}${img}</div>
+            `;
+        } else {
+            // Desktop mode - show full header with reply button
+            messageElement.innerHTML = `
+                <div class="message-header">
+                    ${avatar}
+                    <span class="${usernameClass}">${messageData.username}</span>
+                    <span class="timestamp">${timestamp}</span>
+                    <button class="reply-btn" title="${this.t('reply')}" data-id="${messageData.id}" data-username="${messageData.username}" data-snippet="${this.escapeHtml(shortSnippet)}" style="margin-left:auto;background:none;border:none;color:#b9bbbe;cursor:pointer;">↩</button>
+                </div>
+                <div class="message-content">${replyPreview}${textHtml}${img}</div>
+            `;
+        }
         
         messagesContainer.appendChild(messageElement);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -1087,12 +1114,13 @@ class DiscordApp {
             <div style=\"color:#b9bbbe;\">${this.escapeHtml(messageData.replyToSnippet)}</div>
         </div>` : '';
         const avatar = messageData.avatarUrl ? `<img class=\"avatar\" src=\"${messageData.avatarUrl}\" alt=\"\">` : '';
+        const usernameClass = messageData.role === 'admin' ? 'username admin' : 'username';
         const snippet = (messageData.message && messageData.message.trim()) ? messageData.message.trim() : '';
         const shortSnippet = (snippet || '').slice(0, 80);
         messageElement.innerHTML = `
             <div class=\"message-header\">
                 ${avatar}
-                <span class=\"username\">${messageData.username}</span>
+                <span class=\"${usernameClass}\">${messageData.username}</span>
                 <span class=\"timestamp\">${timestamp}</span>
                 <button class=\"reply-btn\" title=\"${this.t('reply')}\" data-id=\"${messageData.id}\" data-username=\"${messageData.username}\" data-snippet=\"${this.escapeHtml(shortSnippet)}\" style=\"margin-left:auto;background:none;border:none;color:#b9bbbe;cursor:pointer;\">↩</button>
             </div>
@@ -1207,5 +1235,13 @@ class DiscordApp {
         }
         if (this._ringGain) this._ringGain.gain.value = 0.0;
         this._ringMode = null;
+    }
+
+    // Phone mode detection
+    isPhoneMode() {
+        // Check if we're on a touch device with small screen
+        return window.innerWidth <= 768 && 
+               ('ontouchstart' in window || navigator.maxTouchPoints > 0) &&
+               !window.matchMedia('(hover: hover)').matches;
     }
 }
