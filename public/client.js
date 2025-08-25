@@ -74,7 +74,13 @@ class DiscordApp {
                 edited: 'edited',
                 editing_message: 'Editing message',
                 save_button: 'Save',
-                cancel: 'Cancel'
+                cancel: 'Cancel',
+                enter_username_dm: 'Enter username for DM:',
+                just_now: 'just now',
+                min_ago: 'min ago',
+                hour_ago: 'h ago',
+                day_ago: 'd ago',
+                admin_notification_prompt: 'Enter notification message for all users:'
             },
             ru: {
                 server_name: 'PivoGram',
@@ -121,7 +127,13 @@ class DiscordApp {
                 edited: 'изменено',
                 editing_message: 'Редактирование сообщения',
                 save_button: 'Сохранить',
-                cancel: 'Отмена'
+                cancel: 'Отмена',
+                enter_username_dm: 'Введи ник пользователя:',
+                just_now: 'только что',
+                min_ago: 'мин назад',
+                hour_ago: 'ч назад',
+                day_ago: 'д назад',
+                admin_notification_prompt: 'Введи текст уведомления для всех:'
             }
         };
         
@@ -346,6 +358,26 @@ class DiscordApp {
                 }
             });
         }
+        
+        const addDmBtn = document.getElementById('addDmBtn');
+        if (addDmBtn) {
+            addDmBtn.addEventListener('click', () => {
+                const username = prompt(this.t('enter_username_dm', 'Введи ник пользователя:'));
+                if (username && username.trim().length > 0) {
+                    this.openDM(username.trim());
+                }
+            });
+        }
+        
+        const adminNotifyBtn = document.getElementById('adminNotifyBtn');
+        if (adminNotifyBtn) {
+            adminNotifyBtn.addEventListener('click', () => {
+                const message = prompt(this.t('admin_notification_prompt', 'Введи текст уведомления для всех:'));
+                if (message && message.trim().length > 0) {
+                    this.socket.emit('admin-notification', message.trim());
+                }
+            });
+        }
     }
     
     showLoginModal() {
@@ -479,6 +511,25 @@ class DiscordApp {
         // User management events
         this.socket.on('users-update', (users) => {
             this.updateUsersList(users);
+            // Show admin button if user is admin
+            const currentUser = users.find(u => u.username === this.username);
+            if (currentUser && currentUser.role === 'admin') {
+                const adminBtn = document.getElementById('adminNotifyBtn');
+                if (adminBtn) adminBtn.style.display = 'inline-block';
+            }
+        });
+        
+        // Admin notification event
+        this.socket.on('admin-notification', (data) => {
+            this.showNotification('📢 Админ уведомление', data.message);
+            // Show in chat too
+            this.displayMessage({
+                id: Date.now(),
+                username: '📢 Админ',
+                message: data.message,
+                timestamp: new Date().toISOString(),
+                isSystem: true
+            });
         });
         
         this.socket.on('room-joined', (roomId) => {
@@ -615,9 +666,19 @@ class DiscordApp {
                 userItem.className = 'user-item';
                 const avatar = user.avatarUrl ? `<img class="avatar" src="${user.avatarUrl}" alt="">` : '';
                 const usernameClass = user.role === 'admin' ? 'username admin' : 'username';
+                const onlineStatus = user.online ? 'online' : 'offline';
+                const statusColor = user.online ? '#43b581' : '#747f8d';
+                const lastSeen = user.online ? '' : this.getLastSeenText(user.lastSeen);
+                
                 userItem.innerHTML = `
-                    <span style="display:flex;align-items:center;gap:8px;">${avatar}<span class="${usernameClass}">${user.username}</span></span>
-                    <div class="status-indicator"></div>
+                    <span style="display:flex;align-items:center;gap:8px;">
+                        ${avatar}
+                        <div>
+                            <span class="${usernameClass}">${user.username}</span>
+                            ${!user.online ? `<div style="font-size:11px;color:#72767d;">${lastSeen}</div>` : ''}
+                        </div>
+                    </span>
+                    <div class="status-indicator" style="background-color:${statusColor}" title="${onlineStatus}"></div>
                 `;
                 userItem.addEventListener('click', () => {
                     this.selectUser(user);
@@ -1417,6 +1478,20 @@ class DiscordApp {
         return window.innerWidth <= 768 && 
                ('ontouchstart' in window || navigator.maxTouchPoints > 0) &&
                !window.matchMedia('(hover: hover)').matches;
+    }
+    
+    // Get last seen text
+    getLastSeenText(lastSeen) {
+        const now = new Date();
+        const diff = now - new Date(lastSeen);
+        const minutes = Math.floor(diff / 60000);
+        const hours = Math.floor(diff / 3600000);
+        const days = Math.floor(diff / 86400000);
+        
+        if (minutes < 1) return this.t('just_now', 'только что');
+        if (minutes < 60) return `${minutes} ${this.t('min_ago', 'мин назад')}`;
+        if (hours < 24) return `${hours} ${this.t('hour_ago', 'ч назад')}`;
+        return `${days} ${this.t('day_ago', 'д назад')}`;
     }
     
     // Show notification

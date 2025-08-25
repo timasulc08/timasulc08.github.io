@@ -1674,7 +1674,10 @@
                 <div id="usersList"></div>
             </div>
             <div class="users-section">
-                <div class="users-title">Direct Messages</div>
+                <div class="users-title">
+                    <span>Direct Messages</span>
+                    <button id="addDmBtn" class="add-group-btn" title="New DM">💬</button>
+                </div>
                 <div id="dmsList"></div>
             </div>
         </div>
@@ -1691,6 +1694,7 @@
                     <button id="videoCallBtn" class="call-btn" title="Video Call">📹</button>
                     <input type="file" id="avatarInput" accept="image/*" style="display:none" />
                     <button id="avatarBtn" class="call-btn" title="Change avatar">🖼️</button>
+                    <button id="adminNotifyBtn" class="call-btn" title="Send Notification" style="display:none;">📢</button>
                     <button id="inviteLinkBtn" class="call-btn" title="Copy invite link">🔗</button>
                     <select id="themeSelector" class="call-btn" title="Theme" style="background:none;border:none;color:#b9bbbe;cursor:pointer;padding:6px;border-radius:4px;font-size:12px;">
                         <option value="default">💫 Default</option>
