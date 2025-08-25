@@ -70,14 +70,16 @@ function loadUsersFromFile() {
         if (!fs.existsSync(USERS_FILE)) {
             fs.writeFileSync(USERS_FILE, JSON.stringify({}, null, 2), 'utf8');
         }
-        const raw = fs.readFileSync(USERS_FILE, 'utf8');
-        const obj = JSON.parse(raw || '{}');
+        const raw = fs.readFileSync(USERS_FILE, 'utf8').trim();
+        const obj = raw ? JSON.parse(raw) : {};
+        userAuth.clear();
         for (const [uname, hash] of Object.entries(obj)) {
             userAuth.set(uname, hash);
         }
         console.log(`Loaded ${userAuth.size} user account(s)`);
     } catch (e) {
         console.error('Failed to load users file', e);
+        userAuth.clear();
     }
 }
 
@@ -126,11 +128,11 @@ function loadRolesFromFile() {
         }
         if (!fs.existsSync(ROLES_FILE)) {
             // Create default roles file with admin user
-            const defaultRoles = { admin: 'admin' };
+            const defaultRoles = { "admin": "admin" };
             fs.writeFileSync(ROLES_FILE, JSON.stringify(defaultRoles, null, 2), 'utf8');
         }
-        const raw = fs.readFileSync(ROLES_FILE, 'utf8');
-        const obj = JSON.parse(raw || '{}');
+        const raw = fs.readFileSync(ROLES_FILE, 'utf8').trim();
+        const obj = raw ? JSON.parse(raw) : {};
         userRoles.clear();
         for (const [uname, role] of Object.entries(obj)) {
             userRoles.set(uname, role);
@@ -138,6 +140,10 @@ function loadRolesFromFile() {
         console.log(`Loaded ${userRoles.size} user role(s)`);
     } catch (e) {
         console.error('Failed to load roles file', e);
+        // Reset to default on error
+        userRoles.clear();
+        userRoles.set('admin', 'admin');
+        saveRolesToFile();
     }
 }
 
