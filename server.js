@@ -510,6 +510,49 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Handle editing private messages
+    socket.on('edit-private-message', (data) => {
+        const user = users.get(socket.id);
+        if (!user) return;
+        
+        const { messageId, newMessage, otherUser } = data;
+        if (!messageId || !newMessage || !otherUser) return;
+        
+        // Find and update message in DM messages
+        const key = dmKey(user.username, otherUser);
+        const messages = dmMessages[key] || [];
+        const messageIndex = messages.findIndex(msg => msg.id == messageId && msg.username === user.username);
+        
+        if (messageIndex !== -1) {
+            messages[messageIndex].message = newMessage;
+            messages[messageIndex].edited = true;
+            messages[messageIndex].editedAt = new Date();
+            
+            // Save to file
+            saveMessagesToFile();
+            
+            // Find target user socket
+            let targetSocketId = null;
+            for (const [sid, u] of users.entries()) {
+                if (u.username === otherUser) { targetSocketId = sid; break; }
+            }
+            
+            // Broadcast updated message to both users
+            const updateData = {
+                messageId: messageId,
+                newMessage: newMessage,
+                edited: true,
+                editedAt: messages[messageIndex].editedAt,
+                otherUser: otherUser
+            };
+            
+            socket.emit('private-message-edited', updateData);
+            if (targetSocketId) {
+                io.to(targetSocketId).emit('private-message-edited', updateData);
+            }
+        }
+    });
+
     // Groups: create new
     socket.on('create-group', (groupId) => {
         const id = String(groupId || '').trim();
@@ -570,6 +613,36 @@ io.on('connection', (socket) => {
         // Broadcast message to room
         io.to(data.roomId).emit('new-message', messageData);
         appendMessage(data.roomId, messageData);
+    });
+
+    // Handle editing messages
+    socket.on('edit-message', (data) => {
+        const user = users.get(socket.id);
+        if (!user) return;
+        
+        const { messageId, newMessage, roomId } = data;
+        if (!messageId || !newMessage || !roomId) return;
+        
+        // Find and update message in room messages
+        const messages = getRoomMessages(roomId);
+        const messageIndex = messages.findIndex(msg => msg.id == messageId && msg.username === user.username);
+        
+        if (messageIndex !== -1) {
+            messages[messageIndex].message = newMessage;
+            messages[messageIndex].edited = true;
+            messages[messageIndex].editedAt = new Date();
+            
+            // Save to file
+            saveMessagesToFile();
+            
+            // Broadcast updated message to room
+            io.to(roomId).emit('message-edited', {
+                messageId: messageId,
+                newMessage: newMessage,
+                edited: true,
+                editedAt: messages[messageIndex].editedAt
+            });
+        }
     });
 
     // Handle call initiation
