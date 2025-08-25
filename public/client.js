@@ -16,6 +16,7 @@ class DiscordApp {
         this.dmWith = null;
         this.dmPartners = new Set();
         this.replyContext = null; // { id, username, snippet }
+        this.editContext = null; // { id, originalMessage }
         
         // WebRTC configuration
         this.rtcConfig = {
@@ -68,7 +69,12 @@ class DiscordApp {
                 reply: 'Reply',
                 reply_to_label: 'Reply to',
                 replying_to_label: 'Replying to',
-                photo_label: 'Photo'
+                photo_label: 'Photo',
+                edit: 'Edit',
+                edited: 'edited',
+                editing_message: 'Editing message',
+                save_button: 'Save',
+                cancel: 'Cancel'
             },
             ru: {
                 server_name: 'PivoGram',
@@ -110,7 +116,12 @@ class DiscordApp {
                 reply: 'Ответить',
                 reply_to_label: 'Ответ на',
                 replying_to_label: 'Ответ пользователю',
-                photo_label: 'Фото'
+                photo_label: 'Фото',
+                edit: 'Редактировать',
+                edited: 'изменено',
+                editing_message: 'Редактирование сообщения',
+                save_button: 'Сохранить',
+                cancel: 'Отмена'
             }
         };
         
@@ -153,22 +164,35 @@ class DiscordApp {
             this.sendMessage();
         });
         
-        // Reply actions (event delegation)
+        // Reply and Edit actions (event delegation)
         const messagesContainer = document.getElementById('messagesContainer');
         if (messagesContainer) {
             messagesContainer.addEventListener('click', (e) => {
-                const btn = e.target.closest('.reply-btn');
-                if (btn) {
-                    const id = btn.dataset.id;
-                    const username = btn.dataset.username || '';
-                    const snippet = btn.dataset.snippet || '';
+                const replyBtn = e.target.closest('.reply-btn');
+                const editBtn = e.target.closest('.edit-btn');
+                
+                if (replyBtn) {
+                    const id = replyBtn.dataset.id;
+                    const username = replyBtn.dataset.username || '';
+                    const snippet = replyBtn.dataset.snippet || '';
                     this.setReplyContext({ id, username, snippet });
+                }
+                
+                if (editBtn) {
+                    const id = editBtn.dataset.id;
+                    const currentMessage = editBtn.dataset.message || '';
+                    this.startEditMessage(id, currentMessage);
                 }
             });
         }
         const cancelReplyBtn = document.getElementById('cancelReplyBtn');
         if (cancelReplyBtn) {
             cancelReplyBtn.addEventListener('click', () => this.clearReplyContext());
+        }
+        
+        const cancelEditBtn = document.getElementById('cancelEditBtn');
+        if (cancelEditBtn) {
+            cancelEditBtn.addEventListener('click', () => this.cancelEditMessage());
         }
         
         const attachImageBtn = document.getElementById('attachImageBtn');
@@ -459,6 +483,15 @@ class DiscordApp {
             this.handlePrivateMessage(messageData);
         });
         
+        // Message editing events
+        this.socket.on('message-edited', (data) => {
+            this.handleMessageEdited(data);
+        });
+        
+        this.socket.on('private-message-edited', (data) => {
+            this.handlePrivateMessageEdited(data);
+        });
+        
         // Call events
         this.socket.on('incoming-call', (data) => {
             this.handleIncomingCall(data);
@@ -571,6 +604,13 @@ class DiscordApp {
         const message = messageInput.value.trim();
         
         if (!message) return;
+        
+        // Check if we're editing a message
+        if (this.editContext) {
+            this.saveEditedMessage(message);
+            return;
+        }
+        
         if (this.inDM && this.dmWith) {
             const payload = {
                 to: this.dmWith,
@@ -634,23 +674,31 @@ class DiscordApp {
                 </div>
                 <div class="message-content">${replyPreview}${textHtml}${img}</div>
             `;
+            
         } else if (isPhoneMode && isOwnMessage) {
             // Hide header for own messages in phone mode
             messageElement.innerHTML = `
                 <div class="message-content">${replyPreview}${textHtml}${img}</div>
             `;
         } else {
-            // Desktop mode - show full header with reply button
+            // Desktop mode - show full header with reply and edit buttons
+            const isOwnMsg = messageData.username === this.username;
+            const editBtn = isOwnMsg ? `<button class="edit-btn" title="${this.t('edit', 'Редактировать')}" data-id="${messageData.id}" data-message="${this.escapeHtml(messageData.message || '')}" style="background:none;border:none;color:#b9bbbe;cursor:pointer;margin-right:4px;">✏️</button>` : '';
             messageElement.innerHTML = `
                 <div class="message-header">
                     ${avatar}
                     <span class="${usernameClass}">${messageData.username}</span>
                     <span class="timestamp">${timestamp}</span>
-                    <button class="reply-btn" title="${this.t('reply')}" data-id="${messageData.id}" data-username="${messageData.username}" data-snippet="${this.escapeHtml(shortSnippet)}" style="margin-left:auto;background:none;border:none;color:#b9bbbe;cursor:pointer;">↩</button>
+                    <div style="margin-left:auto;">
+                        ${editBtn}
+                        <button class="reply-btn" title="${this.t('reply')}" data-id="${messageData.id}" data-username="${messageData.username}" data-snippet="${this.escapeHtml(shortSnippet)}" style="background:none;border:none;color:#b9bbbe;cursor:pointer;">↩</button>
+                    </div>
                 </div>
-                <div class="message-content">${replyPreview}${textHtml}${img}</div>
+                <div class="message-content">${replyPreview}${textHtml}${(messageData.edited ? ` <span style="color:#72767d;font-size:12px;">(${this.t('edited', 'изменено')})</span>` : '')}${img}</div>
             `;
         }
+        
+        messageElement.dataset.messageId = messageData.id;
         
         messagesContainer.appendChild(messageElement);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -1117,15 +1165,21 @@ class DiscordApp {
         const usernameClass = messageData.role === 'admin' ? 'username admin' : 'username';
         const snippet = (messageData.message && messageData.message.trim()) ? messageData.message.trim() : '';
         const shortSnippet = (snippet || '').slice(0, 80);
+        const isOwnMsg = messageData.username === this.username;
+        const editBtn = isOwnMsg ? `<button class=\"edit-btn\" title=\"${this.t('edit', 'Редактировать')}\" data-id=\"${messageData.id}\" data-message=\"${this.escapeHtml(messageData.message || '')}\" style=\"background:none;border:none;color:#b9bbbe;cursor:pointer;margin-right:4px;\">✏️</button>` : '';
         messageElement.innerHTML = `
             <div class=\"message-header\">
                 ${avatar}
                 <span class=\"${usernameClass}\">${messageData.username}</span>
                 <span class=\"timestamp\">${timestamp}</span>
-                <button class=\"reply-btn\" title=\"${this.t('reply')}\" data-id=\"${messageData.id}\" data-username=\"${messageData.username}\" data-snippet=\"${this.escapeHtml(shortSnippet)}\" style=\"margin-left:auto;background:none;border:none;color:#b9bbbe;cursor:pointer;\">↩</button>
+                <div style=\"margin-left:auto;\">
+                    ${editBtn}
+                    <button class=\"reply-btn\" title=\"${this.t('reply')}\" data-id=\"${messageData.id}\" data-username=\"${messageData.username}\" data-snippet=\"${this.escapeHtml(shortSnippet)}\" style=\"background:none;border:none;color:#b9bbbe;cursor:pointer;\">↩</button>
+                </div>
             </div>
-            <div class=\"message-content\">${replyPreview}${textHtml}</div>
+            <div class=\"message-content\">${replyPreview}${textHtml}${(messageData.edited ? ` <span style=\"color:#72767d;font-size:12px;\">(${this.t('edited', 'изменено')})</span>` : '')}</div>
         `;
+        messageElement.dataset.messageId = messageData.id;
         messagesContainer.appendChild(messageElement);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
@@ -1147,6 +1201,79 @@ class DiscordApp {
         if (replyBar && replyText) {
             replyText.textContent = '';
             replyBar.style.display = 'none';
+        }
+    }
+    
+    startEditMessage(messageId, currentMessage) {
+        this.editContext = { id: messageId, originalMessage: currentMessage };
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const editBar = document.getElementById('editBar');
+        const editText = document.getElementById('editText');
+        
+        if (messageInput) messageInput.value = currentMessage;
+        if (sendBtn) sendBtn.textContent = this.t('save_button', 'Сохранить');
+        if (editBar && editText) {
+            editText.textContent = this.t('editing_message', 'Редактирование сообщения');
+            editBar.style.display = 'block';
+        }
+        if (messageInput) messageInput.focus();
+    }
+    
+    cancelEditMessage() {
+        this.editContext = null;
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const editBar = document.getElementById('editBar');
+        
+        if (messageInput) messageInput.value = '';
+        if (sendBtn) sendBtn.textContent = this.t('send_button');
+        if (editBar) editBar.style.display = 'none';
+    }
+    
+    saveEditedMessage(newMessage) {
+        if (!this.editContext || !newMessage.trim()) return;
+        
+        if (this.inDM && this.dmWith) {
+            this.socket.emit('edit-private-message', {
+                messageId: this.editContext.id,
+                newMessage: newMessage,
+                otherUser: this.dmWith
+            });
+        } else {
+            this.socket.emit('edit-message', {
+                messageId: this.editContext.id,
+                newMessage: newMessage,
+                roomId: this.currentRoom
+            });
+        }
+        
+        this.cancelEditMessage();
+    }
+    
+    handleMessageEdited(data) {
+        const messageElements = document.querySelectorAll('.message');
+        messageElements.forEach(el => {
+            const messageId = el.dataset.messageId;
+            if (messageId == data.messageId) {
+                const contentEl = el.querySelector('.message-content');
+                if (contentEl) {
+                    const textPart = contentEl.innerHTML.replace(/<div class="message-image">.*?<\/div>/s, '');
+                    const imagePart = contentEl.innerHTML.match(/<div class="message-image">.*?<\/div>/s)?.[0] || '';
+                    const replyPart = textPart.match(/^<div style="border-left:3px solid #5865f2;.*?<\/div>/s)?.[0] || '';
+                    const cleanText = textPart.replace(/^<div style="border-left:3px solid #5865f2;.*?<\/div>/s, '');
+                    
+                    contentEl.innerHTML = replyPart + this.escapeHtml(data.newMessage) + 
+                        (data.edited ? ` <span style="color:#72767d;font-size:12px;">(${this.t('edited', 'изменено')})</span>` : '') + 
+                        imagePart;
+                }
+            }
+        });
+    }
+    
+    handlePrivateMessageEdited(data) {
+        if (this.inDM && this.dmWith && (this.dmWith === data.otherUser || this.username === data.otherUser)) {
+            this.handleMessageEdited(data);
         }
     }
 

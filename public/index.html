@@ -644,6 +644,58 @@
             border-color: rgba(88,101,242,0.5);
             box-shadow: 0 0 16px rgba(88,101,242,0.3);
         }
+
+        /* Green Theme */
+        .theme-green {
+            background: radial-gradient(1000px 600px at 10% -20%, #2d5a3d, #1e3a2e) fixed;
+        }
+        .theme-green .sidebar { background: rgba(29,58,35,0.95); }
+        .theme-green .server-info { background: linear-gradient(135deg, rgba(67,181,129,0.3), rgba(76,175,80,0.2)); }
+        .theme-green .chat-header { background: rgba(29,58,35,0.9); }
+        .theme-green .main-content { background: linear-gradient(180deg, #2d5a3d, #1e3a2e); }
+        .theme-green .send-btn { background: linear-gradient(135deg, #43b581, #4caf50); }
+        .theme-green .group-item.active { background: linear-gradient(135deg, rgba(67,181,129,0.4), rgba(76,175,80,0.2)); border-color: #43b581; }
+        .theme-green .message-content { border-color: rgba(67,181,129,0.2); }
+        .theme-green .message-content:hover { border-color: #43b581; box-shadow: 0 6px 24px rgba(67,181,129,0.3); }
+
+        /* Purple Theme */
+        .theme-purple {
+            background: radial-gradient(1000px 600px at 10% -20%, #4a2c5a, #2e1a3a) fixed;
+        }
+        .theme-purple .sidebar { background: rgba(44,26,58,0.95); }
+        .theme-purple .server-info { background: linear-gradient(135deg, rgba(156,39,176,0.3), rgba(171,71,188,0.2)); }
+        .theme-purple .chat-header { background: rgba(44,26,58,0.9); }
+        .theme-purple .main-content { background: linear-gradient(180deg, #4a2c5a, #2e1a3a); }
+        .theme-purple .send-btn { background: linear-gradient(135deg, #9c27b0, #ab47bc); }
+        .theme-purple .group-item.active { background: linear-gradient(135deg, rgba(156,39,176,0.4), rgba(171,71,188,0.2)); border-color: #9c27b0; }
+        .theme-purple .message-content { border-color: rgba(156,39,176,0.2); }
+        .theme-purple .message-content:hover { border-color: #9c27b0; box-shadow: 0 6px 24px rgba(156,39,176,0.3); }
+
+        /* Blue Theme */
+        .theme-blue {
+            background: radial-gradient(1000px 600px at 10% -20%, #2c4a5a, #1a2e3a) fixed;
+        }
+        .theme-blue .sidebar { background: rgba(26,44,58,0.95); }
+        .theme-blue .server-info { background: linear-gradient(135deg, rgba(33,150,243,0.3), rgba(66,165,245,0.2)); }
+        .theme-blue .chat-header { background: rgba(26,44,58,0.9); }
+        .theme-blue .main-content { background: linear-gradient(180deg, #2c4a5a, #1a2e3a); }
+        .theme-blue .send-btn { background: linear-gradient(135deg, #2196f3, #42a5f5); }
+        .theme-blue .group-item.active { background: linear-gradient(135deg, rgba(33,150,243,0.4), rgba(66,165,245,0.2)); border-color: #2196f3; }
+        .theme-blue .message-content { border-color: rgba(33,150,243,0.2); }
+        .theme-blue .message-content:hover { border-color: #2196f3; box-shadow: 0 6px 24px rgba(33,150,243,0.3); }
+
+        /* Red Theme */
+        .theme-red {
+            background: radial-gradient(1000px 600px at 10% -20%, #5a2c2c, #3a1a1a) fixed;
+        }
+        .theme-red .sidebar { background: rgba(58,26,26,0.95); }
+        .theme-red .server-info { background: linear-gradient(135deg, rgba(244,67,54,0.3), rgba(229,57,53,0.2)); }
+        .theme-red .chat-header { background: rgba(58,26,26,0.9); }
+        .theme-red .main-content { background: linear-gradient(180deg, #5a2c2c, #3a1a1a); }
+        .theme-red .send-btn { background: linear-gradient(135deg, #f44336, #e53935); }
+        .theme-red .group-item.active { background: linear-gradient(135deg, rgba(244,67,54,0.4), rgba(229,57,53,0.2)); border-color: #f44336; }
+        .theme-red .message-content { border-color: rgba(244,67,54,0.2); }
+        .theme-red .message-content:hover { border-color: #f44336; box-shadow: 0 6px 24px rgba(244,67,54,0.3); }
     </style>
     <style>
         /* Fixed Phone Version */
@@ -1552,7 +1604,13 @@
                     <input type="file" id="avatarInput" accept="image/*" style="display:none" />
                     <button id="avatarBtn" class="call-btn" title="Change avatar">🖼️</button>
                     <button id="inviteLinkBtn" class="call-btn" title="Copy invite link">🔗</button>
-                    <button id="uiToggleBtn" class="call-btn" title="Toggle Interface">✨</button>
+                    <select id="themeSelector" class="call-btn" title="Theme" style="background:none;border:none;color:#b9bbbe;cursor:pointer;padding:8px;border-radius:4px;">
+                        <option value="default">💫 Default</option>
+                        <option value="green">💚 Green</option>
+                        <option value="purple">💜 Purple</option>
+                        <option value="blue">💙 Blue</option>
+                        <option value="red">❤️ Red</option>
+                    </select>
                     <button id="logoutBtn" class="call-btn" title="Logout">⎋</button>
                 </div>
             </div>
@@ -1567,6 +1625,10 @@
                 <div id="replyBar" style="display:none; background:#2f3136; border:1px solid #40444b; border-radius:6px; padding:8px 10px; margin-bottom:8px; font-size:13px; color:#b9bbbe;">
                     <span id="replyText"></span>
                     <button id="cancelReplyBtn" class="add-group-btn" style="margin-left:8px;">✖</button>
+                </div>
+                <div id="editBar" style="display:none; background:#2f3136; border:1px solid #40444b; border-radius:6px; padding:8px 10px; margin-bottom:8px; font-size:13px; color:#b9bbbe;">
+                    <span id="editText"></span>
+                    <button id="cancelEditBtn" class="add-group-btn" style="margin-left:8px;">✖</button>
                 </div>
                 <div class="message-input-wrapper">
                     <input type="text" id="messageInput" class="message-input" placeholder="Type a message..." maxlength="500">
@@ -1591,24 +1653,27 @@
     <script>
         // Initialize the app
         const app = new DiscordApp();
-        // UI toggle persistence
+        // Theme system
         (function(){
             try {
-                const key = 'uiNew';
-                const apply = (on) => {
-                    document.body.classList.toggle('new-ui', !!on);
-                    localStorage.setItem(key, on ? '1' : '0');
+                const themeKey = 'selectedTheme';
+                const applyTheme = (theme) => {
+                    document.body.className = 'new-ui';
+                    if (theme !== 'default') {
+                        document.body.classList.add(`theme-${theme}`);
+                    }
+                    localStorage.setItem(themeKey, theme);
                 };
-                // Apply saved mode
-                apply(localStorage.getItem(key) === '1');
-                const btn = document.getElementById('uiToggleBtn');
-                if (btn) {
-                    btn.addEventListener('click', () => {
-                        const enabled = document.body.classList.contains('new-ui');
-                        apply(!enabled);
-                        // quick feedback
-                        btn.textContent = enabled ? '✨' : '⭐';
-                        setTimeout(() => btn.textContent = '✨', 800);
+                
+                // Apply saved theme (default to default)
+                const savedTheme = localStorage.getItem(themeKey) || 'default';
+                applyTheme(savedTheme);
+                
+                const selector = document.getElementById('themeSelector');
+                if (selector) {
+                    selector.value = savedTheme;
+                    selector.addEventListener('change', (e) => {
+                        applyTheme(e.target.value);
                     });
                 }
             } catch(e) { }

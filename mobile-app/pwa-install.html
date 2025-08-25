@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Установить PivoGram</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #36393f; color: white; }
+        .container { max-width: 400px; margin: 0 auto; text-align: center; }
+        .btn { background: #5865f2; color: white; padding: 15px 30px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; margin: 10px; }
+        .btn:hover { background: #4752c4; }
+        .step { background: #2f3136; padding: 15px; margin: 10px 0; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 Установить PivoGram</h1>
+        
+        <button class="btn" onclick="window.open('https://pivogram.up.railway.app/', '_blank')">
+            🌐 Открыть PivoGram
+        </button>
+        
+        <div class="step">
+            <h3>📲 Установка на Android:</h3>
+            <p>1. Открой ссылку выше в Chrome<br>
+            2. Нажми ⋮ (меню)<br>
+            3. "Добавить на главный экран"</p>
+        </div>
+        
+        <div class="step">
+            <h3>🍎 Установка на iPhone:</h3>
+            <p>1. Открой ссылку в Safari<br>
+            2. Нажми 📤 (поделиться)<br>
+            3. "На экран «Домой»"</p>
+        </div>
+        
+        <script>
+            // Автоматическое предложение установки PWA
+            let deferredPrompt;
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                deferredPrompt = e;
+                
+                const installBtn = document.createElement('button');
+                installBtn.className = 'btn';
+                installBtn.textContent = '⬇️ Установить приложение';
+                installBtn.onclick = () => {
+                    deferredPrompt.prompt();
+                    deferredPrompt.userChoice.then(() => {
+                        deferredPrompt = null;
+                        installBtn.remove();
+                    });
+                };
+                document.querySelector('.container').appendChild(installBtn);
+            });
+        </script>
+    </div>
+</body>
+</html>
