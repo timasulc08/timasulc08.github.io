@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>PivoGram</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#5865f2">
     <style>
         * {
             margin: 0;
@@ -657,6 +659,9 @@
         .theme-green .group-item.active { background: linear-gradient(135deg, rgba(67,181,129,0.4), rgba(76,175,80,0.2)); border-color: #43b581; }
         .theme-green .message-content { border-color: rgba(67,181,129,0.2); }
         .theme-green .message-content:hover { border-color: #43b581; box-shadow: 0 6px 24px rgba(67,181,129,0.3); }
+        .theme-green .message-input-container { background: rgba(29,58,35,0.95); }
+        .theme-green .phone-mode .chat-header { background: linear-gradient(135deg, #43b581, #4caf50); }
+        .theme-green .phone-mode .send-btn { background: linear-gradient(135deg, #43b581, #4caf50); }
 
         /* Purple Theme */
         .theme-purple {
@@ -670,6 +675,9 @@
         .theme-purple .group-item.active { background: linear-gradient(135deg, rgba(156,39,176,0.4), rgba(171,71,188,0.2)); border-color: #9c27b0; }
         .theme-purple .message-content { border-color: rgba(156,39,176,0.2); }
         .theme-purple .message-content:hover { border-color: #9c27b0; box-shadow: 0 6px 24px rgba(156,39,176,0.3); }
+        .theme-purple .message-input-container { background: rgba(44,26,58,0.95); }
+        .theme-purple .phone-mode .chat-header { background: linear-gradient(135deg, #9c27b0, #ab47bc); }
+        .theme-purple .phone-mode .send-btn { background: linear-gradient(135deg, #9c27b0, #ab47bc); }
 
         /* Blue Theme */
         .theme-blue {
@@ -683,6 +691,9 @@
         .theme-blue .group-item.active { background: linear-gradient(135deg, rgba(33,150,243,0.4), rgba(66,165,245,0.2)); border-color: #2196f3; }
         .theme-blue .message-content { border-color: rgba(33,150,243,0.2); }
         .theme-blue .message-content:hover { border-color: #2196f3; box-shadow: 0 6px 24px rgba(33,150,243,0.3); }
+        .theme-blue .message-input-container { background: rgba(26,44,58,0.95); }
+        .theme-blue .phone-mode .chat-header { background: linear-gradient(135deg, #2196f3, #42a5f5); }
+        .theme-blue .phone-mode .send-btn { background: linear-gradient(135deg, #2196f3, #42a5f5); }
 
         /* Red Theme */
         .theme-red {
@@ -696,6 +707,9 @@
         .theme-red .group-item.active { background: linear-gradient(135deg, rgba(244,67,54,0.4), rgba(229,57,53,0.2)); border-color: #f44336; }
         .theme-red .message-content { border-color: rgba(244,67,54,0.2); }
         .theme-red .message-content:hover { border-color: #f44336; box-shadow: 0 6px 24px rgba(244,67,54,0.3); }
+        .theme-red .message-input-container { background: rgba(58,26,26,0.95); }
+        .theme-red .phone-mode .chat-header { background: linear-gradient(135deg, #f44336, #e53935); }
+        .theme-red .phone-mode .send-btn { background: linear-gradient(135deg, #f44336, #e53935); }
     </style>
     <style>
         /* Fixed Phone Version */
@@ -903,6 +917,15 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            text-indent: -9999px;
+            position: relative;
+        }
+        
+        .phone-mode .send-btn::before {
+            content: '➤';
+            font-size: 20px;
+            text-indent: 0;
+            position: absolute;
         }
 
         .phone-mode .send-btn:active {
@@ -1082,6 +1105,12 @@
             font-size: 16px;
         }
 
+        /* Hide some buttons on very small screens */
+        @media (max-width: 360px) {
+            #avatarBtn, #uiToggleBtn { display: none !important; }
+            #themeSelector { font-size: 10px; padding: 2px; max-width: 50px; }
+        }
+        
         /* Phone Portrait (up to 480px) */
         @media (max-width: 480px) {
             body, .app-container { 
@@ -1116,26 +1145,39 @@
 
             .chat-header {
                 height: 56px;
-                padding: 0 12px;
+                padding: 0 8px;
                 position: sticky;
                 top: 0;
                 z-index: 100;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
             }
 
             .channel-name {
-                font-size: 18px;
+                font-size: 16px;
                 font-weight: 700;
+                flex: 1;
+                text-overflow: ellipsis;
+                overflow: hidden;
+                white-space: nowrap;
+                margin: 0 8px;
             }
 
             .call-buttons {
-                gap: 8px;
+                gap: 4px;
+                flex-shrink: 0;
+                display: flex;
+                flex-wrap: wrap;
+                max-width: 50%;
             }
 
             .call-btn {
-                padding: 10px;
-                font-size: 16px;
-                min-height: 40px;
-                min-width: 40px;
+                padding: 8px;
+                font-size: 14px;
+                min-height: 36px;
+                min-width: 36px;
+                border-radius: 50%;
             }
 
             .group-item, .user-item {
@@ -1147,7 +1189,8 @@
 
             .messages-container {
                 padding: 8px 12px;
-                padding-bottom: 80px;
+                padding-bottom: 120px;
+                min-height: calc(100vh - 200px);
             }
 
             .message {
@@ -1191,6 +1234,7 @@
                 background: var(--input-bg, #40444b);
                 border-top: 1px solid #2f3136;
                 z-index: 50;
+                box-shadow: 0 -2px 10px rgba(0,0,0,0.3);
             }
 
             .message-input-wrapper {
@@ -1211,6 +1255,16 @@
                 font-size: 16px;
                 min-height: 48px;
                 min-width: 48px;
+            }
+            
+            .send-btn::before {
+                content: '➤';
+                font-size: 18px;
+            }
+            
+            .send-btn {
+                text-indent: -9999px;
+                position: relative;
             }
 
             #attachImageBtn {
@@ -1372,6 +1426,16 @@
             .send-btn, #attachImageBtn {
                 font-size: 15px;
                 min-height: 44px;
+            }
+            
+            .send-btn::before {
+                content: '➤';
+                font-size: 16px;
+            }
+            
+            .send-btn {
+                text-indent: -9999px;
+                position: relative;
             }
 
             .modal-content {
@@ -1604,7 +1668,7 @@
                     <input type="file" id="avatarInput" accept="image/*" style="display:none" />
                     <button id="avatarBtn" class="call-btn" title="Change avatar">🖼️</button>
                     <button id="inviteLinkBtn" class="call-btn" title="Copy invite link">🔗</button>
-                    <select id="themeSelector" class="call-btn" title="Theme" style="background:none;border:none;color:#b9bbbe;cursor:pointer;padding:8px;border-radius:4px;">
+                    <select id="themeSelector" class="call-btn" title="Theme" style="background:none;border:none;color:#b9bbbe;cursor:pointer;padding:6px;border-radius:4px;font-size:12px;">
                         <option value="default">💫 Default</option>
                         <option value="green">💚 Green</option>
                         <option value="purple">💜 Purple</option>
@@ -1651,8 +1715,29 @@
     <!-- Client JavaScript -->
     <script src="/client.js"></script>
     <script>
+        // Service Worker и уведомления
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js');
+        }
+        
+        // Запрос разрешения на уведомления
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+        
         // Initialize the app
         const app = new DiscordApp();
+        
+        // Фикс для мобильных - автоскролл при фокусе на input
+        const messageInput = document.getElementById('messageInput');
+        if (messageInput) {
+            messageInput.addEventListener('focus', () => {
+                setTimeout(() => {
+                    const container = document.getElementById('messagesContainer');
+                    if (container) container.scrollTop = container.scrollHeight;
+                }, 300);
+            });
+        }
         // Theme system
         (function(){
             try {
@@ -1678,6 +1763,17 @@
                 }
             } catch(e) { }
         })();
+        
+        // Функция показа уведомлений
+        window.showNotification = function(title, body) {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification(title, {
+                    body: body,
+                    icon: '/favicon.ico',
+                    tag: 'message'
+                });
+            }
+        };
     </script>
 </body>
 </html>

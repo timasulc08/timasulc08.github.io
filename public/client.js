@@ -475,12 +475,22 @@ class DiscordApp {
         // Message events
         this.socket.on('new-message', (messageData) => {
             // Only show room messages when not viewing a DM
-            if (!this.inDM) this.displayMessage(messageData);
+            if (!this.inDM) {
+                this.displayMessage(messageData);
+                // Show notification if not own message and page not visible
+                if (messageData.username !== this.username && document.hidden) {
+                    this.showNotification(`${messageData.username} в #${this.currentRoom}`, messageData.message || 'Отправил изображение');
+                }
+            }
         });
         
         // Private message events
         this.socket.on('private-message', (messageData) => {
             this.handlePrivateMessage(messageData);
+            // Show notification for private messages if not own message and page not visible
+            if (messageData.username !== this.username && document.hidden) {
+                this.showNotification(`${messageData.username} (личное)`, messageData.message || 'Отправил изображение');
+            }
         });
         
         // Message editing events
@@ -1370,5 +1380,22 @@ class DiscordApp {
         return window.innerWidth <= 768 && 
                ('ontouchstart' in window || navigator.maxTouchPoints > 0) &&
                !window.matchMedia('(hover: hover)').matches;
+    }
+    
+    // Show notification
+    showNotification(title, body) {
+        // Android WebView
+        if (typeof AndroidNotification !== 'undefined') {
+            AndroidNotification.showNotification(title, body);
+        }
+        // Browser
+        else if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification(title, {
+                body: body,
+                icon: '/favicon.ico',
+                tag: 'message',
+                requireInteraction: false
+            });
+        }
     }
 }
