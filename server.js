@@ -266,12 +266,21 @@ function getUserFromReq(req) {
     return username || null;
 }
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // Initialize a default group/room
 rooms.set('general', new Set());
-loadUsersFromFile();
-loadAvatarsFromFile();
-loadRolesFromFile();
-loadMessagesFromFile();
+try {
+    loadUsersFromFile();
+    loadAvatarsFromFile();
+    loadRolesFromFile();
+    loadMessagesFromFile();
+} catch (e) {
+    console.log('Using default settings');
+}
 
 // Auth endpoints
 app.post('/api/register', async (req, res) => {
@@ -843,6 +852,16 @@ app.get('/invite/:roomId', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT}`);
-});
+const startServer = () => {
+    try {
+        server.listen(PORT, '0.0.0.0', () => {
+            console.log(`✅ PivoGram server running on port ${PORT}`);
+            console.log(`🌐 Health check: http://localhost:${PORT}/health`);
+        });
+    } catch (error) {
+        console.error('❌ Failed to start server:', error);
+        process.exit(1);
+    }
+};
+
+startServer();
