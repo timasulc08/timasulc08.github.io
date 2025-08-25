@@ -23,11 +23,13 @@ const users = new Map();
 const rooms = new Map();
 const activeCalls = new Map();
 const userAuth = new Map(); // username -> passwordHash
+const userRoles = new Map(); // username -> role ('admin' or 'user')
 const sessionTokens = new Map(); // token -> username
 const pendingInvites = new Map(); // socketId -> roomId
 
 const DATA_DIR = path.join(__dirname, 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const ROLES_FILE = path.join(DATA_DIR, 'roles.json');
 const UPLOADS_DIR = path.join(__dirname, 'public', 'uploads');
 const AVATARS_FILE = path.join(DATA_DIR, 'avatars.json');
 const avatars = new Map();
@@ -114,6 +116,45 @@ function saveAvatarsToFile() {
     } catch (e) {
         console.error('Failed to save avatars file', e);
     }
+}
+
+function loadRolesFromFile() {
+    try {
+        if (!fs.existsSync(DATA_DIR)) {
+            fs.mkdirSync(DATA_DIR, { recursive: true });
+        }
+        if (!fs.existsSync(ROLES_FILE)) {
+            // Create default roles file with admin user
+            const defaultRoles = { admin: 'admin' };
+            fs.writeFileSync(ROLES_FILE, JSON.stringify(defaultRoles, null, 2), 'utf8');
+        }
+        const raw = fs.readFileSync(ROLES_FILE, 'utf8');
+        const obj = JSON.parse(raw || '{}');
+        userRoles.clear();
+        for (const [uname, role] of Object.entries(obj)) {
+            userRoles.set(uname, role);
+        }
+        console.log(`Loaded ${userRoles.size} user role(s)`);
+    } catch (e) {
+        console.error('Failed to load roles file', e);
+    }
+}
+
+function saveRolesToFile() {
+    try {
+        const obj = Object.fromEntries(userRoles.entries());
+        fs.writeFileSync(ROLES_FILE, JSON.stringify(obj, null, 2), 'utf8');
+    } catch (e) {
+        console.error('Failed to save roles file', e);
+    }
+}
+
+function getUserRole(username) {
+    return userRoles.get(username) || 'user';
+}
+
+function isAdmin(username) {
+    return getUserRole(username) === 'admin';
 }
 
 function loadMessagesFromFile() {
@@ -215,6 +256,7 @@ function getUserFromReq(req) {
 rooms.set('general', new Set());
 loadUsersFromFile();
 loadAvatarsFromFile();
+loadRolesFromFile();
 loadMessagesFromFile();
 
 // Auth endpoints
@@ -348,6 +390,7 @@ app.post('/api/upload/photo', (req, res) => {
                 message: '',
                 imageUrl: publicUrl,
                 avatarUrl: avatars.get(username) || null,
+                role: getUserRole(username),
                 timestamp: new Date(),
                 roomId,
                 replyToId: body.replyToId || null,
@@ -443,6 +486,7 @@ io.on('connection', (socket) => {
             to: toName,
             message: text,
             avatarUrl: avatars.get(fromUser.username) || null,
+            role: getUserRole(fromUser.username),
             timestamp: new Date(),
             replyToId: (data && data.replyToId) || null,
             replyToUsername: (data && data.replyToUsername) || null,
@@ -515,6 +559,7 @@ io.on('connection', (socket) => {
             username: data.username,
             message: data.message,
             avatarUrl: avatars.get(data.username) || null,
+            role: getUserRole(data.username),
             timestamp: new Date(),
             roomId: data.roomId,
             replyToId: data.replyToId || null,
@@ -652,6 +697,7 @@ io.on('connection', (socket) => {
             username: u.username,
             currentRoom: u.currentRoom,
             avatarUrl: avatars.get(u.username) || null,
+            role: getUserRole(u.username),
         }));
         io.emit('users-update', usersList);
     }
