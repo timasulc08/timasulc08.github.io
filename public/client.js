@@ -251,6 +251,10 @@ class DiscordApp {
             this.initiateCall('video');
         });
         
+        document.getElementById('screenShareBtn').addEventListener('click', () => {
+            this.initiateCall('screen');
+        });
+        
         // Mobile sidebar toggle
         const mobileMenuBtn = document.getElementById('mobileMenuBtn');
         const sidebar = document.querySelector('.sidebar');
@@ -360,6 +364,12 @@ class DiscordApp {
             });
         }
 
+        // Settings
+        const settingsBtn = document.getElementById('settingsBtn');
+        if (settingsBtn) {
+            settingsBtn.addEventListener('click', () => this.showSettingsModal());
+        }
+        
         // Logout
         const logoutBtn = document.getElementById('logoutBtn');
         if (logoutBtn) {
@@ -378,6 +388,22 @@ class DiscordApp {
         document.getElementById('endCall').addEventListener('click', () => {
             this.endCall();
         });
+        
+        // Settings modal events
+        const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+        if (closeSettingsBtn) {
+            closeSettingsBtn.addEventListener('click', () => this.hideSettingsModal());
+        }
+        
+        const changeUsernameBtn = document.getElementById('changeUsernameBtn');
+        if (changeUsernameBtn) {
+            changeUsernameBtn.addEventListener('click', () => this.changeUsername());
+        }
+        
+        const changePasswordBtn = document.getElementById('changePasswordBtn');
+        if (changePasswordBtn) {
+            changePasswordBtn.addEventListener('click', () => this.changePassword());
+        }
         
         // Username input event
         document.getElementById('usernameInput').addEventListener('keypress', (e) => {
@@ -712,7 +738,7 @@ class DiscordApp {
                     <span style="display:flex;align-items:center;gap:8px;">
                         ${avatar}
                         <div>
-                            <span class="${usernameClass}">${user.username}</span>
+                            <span class="${usernameClass}" data-username="${user.username}">${user.username}</span>
                             ${!user.online ? `<div style="font-size:11px;color:#72767d;">${lastSeen}</div>` : ''}
                         </div>
                     </span>
@@ -802,7 +828,7 @@ class DiscordApp {
             messageElement.innerHTML = `
                 <div class="message-header">
                     ${avatar}
-                    <span class="${usernameClass}">${messageData.username}</span>
+                    <span class="${usernameClass}" data-username="${messageData.username}">${messageData.username}</span>
                     <span class="timestamp">${timestamp}</span>
                 </div>
                 <div class="message-content" style="position:relative;">
@@ -826,7 +852,7 @@ class DiscordApp {
             messageElement.innerHTML = `
                 <div class="message-header">
                     ${avatar}
-                    <span class="${usernameClass}">${messageData.username}</span>
+                    <span class="${usernameClass}" data-username="${messageData.username}">${messageData.username}</span>
                     <span class="timestamp">${timestamp}</span>
                     <div style="margin-left:auto;">
                         ${editBtn}
@@ -923,7 +949,6 @@ class DiscordApp {
             return;
         }
         
-        // For simplicity, we'll call the first available user
         const usersList = document.getElementById('usersList');
         const firstUser = usersList.querySelector('.user-item');
         
@@ -932,17 +957,18 @@ class DiscordApp {
             return;
         }
         
-        // In a real app, you'd have a way to select which user to call
-        // For now, we'll just use a prompt
         const targetUsername = prompt(this.t('enter_username_call'));
         if (!targetUsername) return;
+        
+        this.currentCallType = callType;
         
         this.socket.emit('initiate-call', {
             targetUserId: targetUsername,
             callType: callType
         });
         
-        this.showCallModal(`${this.t('calling_prefix')} ${targetUsername}...`);
+        const callTypeText = callType === 'screen' ? 'демонстрация экрана' : (callType === 'video' ? 'видеозвонок' : 'голосовой звонок');
+        this.showCallModal(`${this.t('calling_prefix')} ${targetUsername} (${callTypeText})...`);
         this.updateCallModalButtons('calling');
         this.ensureAudio();
         this.startOutgoingRing();
@@ -999,6 +1025,7 @@ class DiscordApp {
     handleCallStarted(data) {
         this.isInCall = true;
         this.currentCallId = data.callId;
+        this.currentCallType = data.callType || 'voice';
         
         document.getElementById('callStatus').textContent = this.t('call_in_progress');
         this.updateCallModalButtons('active');
@@ -1058,11 +1085,18 @@ class DiscordApp {
     // WebRTC functionality
     async initializeWebRTC() {
         try {
-            // Get user media
-            this.localStream = await navigator.mediaDevices.getUserMedia({
-                video: true,
-                audio: true
-            });
+            // Get user media or screen share
+            if (this.currentCallType === 'screen') {
+                this.localStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: true,
+                    audio: true
+                });
+            } else {
+                this.localStream = await navigator.mediaDevices.getUserMedia({
+                    video: this.currentCallType === 'video',
+                    audio: true
+                });
+            }
             
             // Display local video
             const localVideo = document.getElementById('localVideo');
@@ -1544,6 +1578,106 @@ class DiscordApp {
                 tag: 'message',
                 requireInteraction: false
             });
+        }
+    }
+    
+    showSettingsModal() {
+        document.getElementById('settingsModal').style.display = 'flex';
+        document.getElementById('newUsernameInput').value = '';
+        document.getElementById('currentPasswordInput').value = '';
+        document.getElementById('newPasswordInput').value = '';
+        document.getElementById('settingsError').style.display = 'none';
+        document.getElementById('settingsSuccess').style.display = 'none';
+    }
+    
+    hideSettingsModal() {
+        document.getElementById('settingsModal').style.display = 'none';
+    }
+    
+    async changeUsername() {
+        const newUsername = document.getElementById('newUsernameInput').value.trim();
+        const currentPassword = document.getElementById('currentPasswordInput').value;
+        const errorEl = document.getElementById('settingsError');
+        const successEl = document.getElementById('settingsSuccess');
+        
+        errorEl.style.display = 'none';
+        successEl.style.display = 'none';
+        
+        if (!newUsername || newUsername.length < 3 || newUsername.length > 20) {
+            errorEl.textContent = 'Имя пользователя должно быть от 3 до 20 символов';
+            errorEl.style.display = 'block';
+            return;
+        }
+        
+        if (!currentPassword) {
+            errorEl.textContent = 'Введите текущий пароль';
+            errorEl.style.display = 'block';
+            return;
+        }
+        
+        try {
+            const res = await fetch('/api/change-username', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ newUsername, currentPassword })
+            });
+            const data = await res.json();
+            
+            if (!res.ok || !data.ok) {
+                throw new Error(data.error || 'Ошибка изменения ника');
+            }
+            
+            this.username = newUsername;
+            successEl.textContent = 'Ник успешно изменен';
+            successEl.style.display = 'block';
+            document.getElementById('newUsernameInput').value = '';
+            document.getElementById('currentPasswordInput').value = '';
+        } catch (err) {
+            errorEl.textContent = err.message;
+            errorEl.style.display = 'block';
+        }
+    }
+    
+    async changePassword() {
+        const currentPassword = document.getElementById('currentPasswordInput').value;
+        const newPassword = document.getElementById('newPasswordInput').value;
+        const errorEl = document.getElementById('settingsError');
+        const successEl = document.getElementById('settingsSuccess');
+        
+        errorEl.style.display = 'none';
+        successEl.style.display = 'none';
+        
+        if (!currentPassword) {
+            errorEl.textContent = 'Введите текущий пароль';
+            errorEl.style.display = 'block';
+            return;
+        }
+        
+        if (!newPassword || newPassword.length < 6 || newPassword.length > 100) {
+            errorEl.textContent = 'Новый пароль должен быть от 6 до 100 символов';
+            errorEl.style.display = 'block';
+            return;
+        }
+        
+        try {
+            const res = await fetch('/api/change-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ currentPassword, newPassword })
+            });
+            const data = await res.json();
+            
+            if (!res.ok || !data.ok) {
+                throw new Error(data.error || 'Ошибка изменения пароля');
+            }
+            
+            successEl.textContent = 'Пароль успешно изменен';
+            successEl.style.display = 'block';
+            document.getElementById('currentPasswordInput').value = '';
+            document.getElementById('newPasswordInput').value = '';
+        } catch (err) {
+            errorEl.textContent = err.message;
+            errorEl.style.display = 'block';
         }
     }
 }
