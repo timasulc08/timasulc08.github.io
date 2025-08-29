@@ -27,6 +27,10 @@ const userAuth = new Map(); // username -> passwordHash
 const userRoles = new Map(); // username -> role ('admin' or 'user')
 const sessionTokens = new Map(); // token -> username
 const pendingInvites = new Map(); // socketId -> roomId
+const captchaSessions = new Map(); // sessionId -> {question, answer, expires}
+const gifts = new Map(); // giftId -> {from, message, emoji, expires, claimed}
+const userGifts = new Map(); // userId -> [giftIds]
+const claimedGifts = new Map(); // giftId -> {userId, claimedAt}
 
 const DATA_DIR = path.join(__dirname, 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
@@ -35,6 +39,7 @@ const UPLOADS_DIR = path.join(__dirname, 'public', 'uploads');
 const AVATARS_FILE = path.join(DATA_DIR, 'avatars.json');
 const avatars = new Map();
 const MESSAGES_FILE = path.join(DATA_DIR, 'messages.json');
+const GIFTS_FILE = path.join(DATA_DIR, 'gifts.json');
 const MAX_HISTORY = parseInt(process.env.MAX_HISTORY || '500', 10);
 let roomMessages = {};
 let dmMessages = {};
@@ -205,6 +210,53 @@ function saveMessagesToFile() {
     }
 }
 
+function loadGiftsFromFile() {
+    try {
+        if (!fs.existsSync(GIFTS_FILE)) {
+            fs.writeFileSync(GIFTS_FILE, JSON.stringify({}, null, 2), 'utf8');
+        }
+        const raw = fs.readFileSync(GIFTS_FILE, 'utf8');
+        const data = JSON.parse(raw || '{}');
+        
+        gifts.clear();
+        userGifts.clear();
+        claimedGifts.clear();
+        
+        if (data.gifts) {
+            for (const [id, gift] of Object.entries(data.gifts)) {
+                gifts.set(id, gift);
+            }
+        }
+        if (data.userGifts) {
+            for (const [userId, giftIds] of Object.entries(data.userGifts)) {
+                userGifts.set(userId, giftIds);
+            }
+        }
+        if (data.claimedGifts) {
+            for (const [giftId, info] of Object.entries(data.claimedGifts)) {
+                claimedGifts.set(giftId, { ...info, claimedAt: new Date(info.claimedAt) });
+            }
+        }
+        
+        console.log(`Loaded ${gifts.size} gift(s)`);
+    } catch (e) {
+        console.error('Failed to load gifts file', e);
+    }
+}
+
+function saveGiftsToFile() {
+    try {
+        const data = {
+            gifts: Object.fromEntries(gifts.entries()),
+            userGifts: Object.fromEntries(userGifts.entries()),
+            claimedGifts: Object.fromEntries(claimedGifts.entries())
+        };
+        fs.writeFileSync(GIFTS_FILE, JSON.stringify(data, null, 2), 'utf8');
+    } catch (e) {
+        console.error('Failed to save gifts file', e);
+    }
+}
+
 function appendMessage(roomId, message) {
     const id = String(roomId);
     if (!roomMessages[id]) roomMessages[id] = [];
@@ -266,9 +318,436 @@ function getUserFromReq(req) {
     return username || null;
 }
 
+// Generate captcha
+function generateCaptcha() {
+    const chars = 'ABCDEFGHIJKLMNPQRSTUVWXYZ123456789'; // Removed O, 0 for clarity
+    let captcha = '';
+    for (let i = 0; i < 5; i++) {
+        captcha += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return { question: captcha, answer: captcha };
+}
+
+// Captcha endpoint
+app.get('/api/captcha', (req, res) => {
+    try {
+        const sessionId = crypto.randomBytes(16).toString('hex');
+        const { question, answer } = generateCaptcha();
+        const expires = Date.now() + 5 * 60 * 1000; // 5 minutes
+        
+        captchaSessions.set(sessionId, { question, answer, expires });
+        
+        // Clean expired sessions
+        for (const [id, session] of captchaSessions.entries()) {
+            if (session.expires < Date.now()) {
+                captchaSessions.delete(id);
+            }
+        }
+        
+        res.json({ ok: true, sessionId, question });
+    } catch (e) {
+        console.error('Captcha generation error', e);
+        res.status(500).json({ ok: false, error: 'Internal server error' });
+    }
+});
+
+// Add gift to user (temporary endpoint)
+app.post('/api/add-gift-to-user', (req, res) => {
+    try {
+        const { username } = req.body;
+        if (!username) {
+            return res.status(400).json({ ok: false, error: 'Username required' });
+        }
+        
+        const giftId = 'beer_' + Date.now();
+        
+        // Add gift
+        gifts.set(giftId, {
+            from: 'PivoGram',
+            message: 'Бесплатное пиво от PivoGram! 🍺',
+            emoji: '🍺',
+            expires: Date.now() + 7 * 24 * 60 * 60 * 1000,
+            claimed: true,
+            claimedBy: username,
+            claimedAt: new Date()
+        });
+        
+        // Add to user gifts
+        if (!userGifts.has(username)) {
+            userGifts.set(username, []);
+        }
+        userGifts.get(username).push(giftId);
+        
+        // Add to claimed gifts
+        claimedGifts.set(giftId, {
+            userId: username,
+            claimedAt: new Date()
+        });
+        
+        saveGiftsToFile();
+        
+        res.json({ ok: true, message: 'Gift added to ' + username });
+    } catch (e) {
+        console.error('Add gift error', e);
+        res.status(500).json({ ok: false, error: 'Internal server error' });
+    }
+});
+
+// Admin gift creation
+app.post('/api/admin/create-gift', (req, res) => {
+    try {
+        const username = getUserFromReq(req);
+        if (!username || !isAdmin(username)) {
+            return res.status(403).json({ ok: false, error: 'Admin access required' });
+        }
+        
+        const { type } = req.body || {};
+        const giftType = type || 'beer';
+        
+        const giftId = crypto.randomBytes(16).toString('hex');
+        const expires = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
+        
+        let giftData;
+        if (giftType === 'error') {
+            giftData = {
+                from: 'admin',
+                message: 'ERROR! Ошибка текстуры!',
+                emoji: '❌',
+                expires,
+                claimed: false
+            };
+        } else if (giftType === 'burger') {
+            giftData = {
+                from: 'McDonald\'s',
+                message: 'Бесплатный бургер от McDonald\'s! 🍔',
+                emoji: '🍔',
+                expires,
+                claimed: false
+            };
+        } else {
+            giftData = {
+                from: 'PivoGram',
+                message: 'Бесплатное пиво от PivoGram! 🍺',
+                emoji: '🍺',
+                expires,
+                claimed: false
+            };
+        }
+        
+        gifts.set(giftId, giftData);
+        saveGiftsToFile();
+        
+        const giftLink = `${req.protocol}://${req.get('host')}/gift/${giftId}`;
+        res.json({ ok: true, giftLink, giftId });
+    } catch (e) {
+        console.error('Create gift error', e);
+        res.status(500).json({ ok: false, error: 'Internal server error' });
+    }
+});
+
+app.get('/gift/:giftId', (req, res) => {
+    const giftId = req.params.giftId;
+    const gift = gifts.get(giftId);
+    
+    if (!gift) {
+        return res.send(`
+            <html><head><title>Подарок не найден</title><meta charset="utf-8"></head>
+            <body style="font-family:Arial;text-align:center;padding:50px;background:#667eea;color:white;">
+                <h1>🎁 Подарок не найден</h1>
+                <p>Этот подарок не существует или уже был получен</p>
+                <a href="/" style="color:white;">Вернуться в чат</a>
+            </body></html>
+        `);
+    }
+    
+    if (gift.expires < Date.now()) {
+        gifts.delete(giftId);
+        return res.send(`
+            <html><head><title>Подарок истек</title><meta charset="utf-8"></head>
+            <body style="font-family:Arial;text-align:center;padding:50px;background:#667eea;color:white;">
+                <h1>⏰ Подарок истек</h1>
+                <p>К сожалению, срок действия этого подарка истек</p>
+                <a href="/" style="color:white;">Вернуться в чат</a>
+            </body></html>
+        `);
+    }
+    
+    const title = gift.emoji === '🍔' ? 'FREE Бургер от McDonald\'s' : 'FREE Пиво от PivoGram';
+    const heading = gift.emoji === '🍔' ? 'FREE Бургер!' : 'FREE Пиво!';
+    const buttonText = gift.emoji === '🍔' ? 'Получить бургер!' : 'Получить пиво!';
+    
+    res.send(`
+        <html><head><title>${title}</title><meta charset="utf-8"></head>
+        <body style="font-family:Arial;text-align:center;padding:50px;background:linear-gradient(135deg,#ff6b35,#f7931e);color:white;">
+            <div style="background:rgba(255,255,255,0.15);padding:40px;border-radius:25px;max-width:450px;margin:0 auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+                <div style="background:#ff4444;color:white;font-weight:bold;font-size:24px;padding:10px 20px;border-radius:15px;margin-bottom:20px;box-shadow:0 5px 15px rgba(255,68,68,0.4);">FREE</div>
+                <div style="font-size:120px;margin-bottom:20px;position:relative;transform-style:preserve-3d;">
+                    <div style="display:inline-block;position:relative;transform:perspective(300px) rotateX(20deg) rotateY(-15deg);filter:drop-shadow(10px 20px 30px rgba(0,0,0,0.5));transition:all 0.5s ease;animation:beerFloat 4s ease-in-out infinite;">
+                        ${gift.emoji}
+                        <div style="position:absolute;top:0;left:0;content:'';width:100%;height:100%;background:radial-gradient(ellipse at 30% 30%, rgba(255,255,255,0.4) 0%, transparent 50%);border-radius:50%;animation:sparkle 2s ease-in-out infinite;"></div>
+                    </div>
+                </div>
+                <style>
+                    @keyframes beerFloat {
+                        0%, 100% { transform: perspective(300px) rotateX(20deg) rotateY(-15deg) translateY(0px); }
+                        50% { transform: perspective(300px) rotateX(15deg) rotateY(-10deg) translateY(-15px); }
+                    }
+                    @keyframes sparkle {
+                        0%, 100% { opacity: 0; transform: scale(0.8); }
+                        50% { opacity: 1; transform: scale(1.2); }
+                    }
+                </style>
+                <h1 style="font-size:32px;margin-bottom:15px;text-shadow:2px 2px 4px rgba(0,0,0,0.3);">${heading}</h1>
+                <p style="font-size:20px;margin:25px 0;line-height:1.4;">${gift.message}</p>
+                <button onclick="claimGift()" style="background:linear-gradient(45deg,#28a745,#20c997);color:white;border:none;padding:20px 40px;border-radius:15px;font-size:18px;cursor:pointer;font-weight:bold;box-shadow:0 8px 25px rgba(40,167,69,0.4);transition:all 0.3s;">🎉 ${buttonText}</button>
+                <br><br>
+                <a href="/" style="color:rgba(255,255,255,0.9);text-decoration:none;font-size:16px;">Перейти в PivoGram</a>
+            </div>
+            <script>
+                function claimGift() {
+                    fetch('/api/claim-gift/${giftId}', {
+                        method:'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({})
+                    })
+                    .then(r => r.json())
+                    .then(d => {
+                        if(d.ok) {
+                            document.body.innerHTML = '<div style="font-family:Arial;text-align:center;padding:50px;background:linear-gradient(135deg,#28a745,#20c997);color:white;"><div style="background:rgba(255,255,255,0.15);padding:40px;border-radius:25px;max-width:450px;margin:0 auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);"><div style="font-size:100px;margin-bottom:20px;">🎉</div><h1 style="font-size:28px;margin-bottom:15px;">Подарок получен!</h1><p style="font-size:18px;margin:20px 0;">Поздравляем! Вы получили подарок!</p><a href="/" style="color:white;font-size:16px;text-decoration:none;background:rgba(255,255,255,0.2);padding:12px 24px;border-radius:10px;display:inline-block;margin-top:15px;">Войти в PivoGram</a></div></div>';
+                        } else {
+                            if (d.error && d.error.includes('войти в аккаунт')) {
+                                document.body.innerHTML = '<div style="font-family:Arial;text-align:center;padding:50px;background:linear-gradient(135deg,#ff6b35,#f7931e);color:white;"><div style="background:rgba(255,255,255,0.15);padding:40px;border-radius:25px;max-width:450px;margin:0 auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);"><div style="font-size:100px;margin-bottom:20px;">🔐</div><h1 style="font-size:28px;margin-bottom:15px;">Требуется вход</h1><p style="font-size:18px;margin:20px 0;">Для получения подарка необходимо войти в аккаунт PivoGram</p><a href="/" style="color:white;font-size:16px;text-decoration:none;background:rgba(255,255,255,0.2);padding:12px 24px;border-radius:10px;display:inline-block;margin-top:15px;">Войти в PivoGram</a></div></div>';
+                            } else {
+                                alert(d.error || 'Ошибка получения подарка');
+                            }
+                        }
+                    });
+                }
+            </script>
+        </body></html>
+    `);
+});
+
+app.post('/api/claim-gift/:giftId', (req, res) => {
+    try {
+        const giftId = req.params.giftId;
+        const gift = gifts.get(giftId);
+        
+        if (!gift) {
+            return res.status(404).json({ ok: false, error: 'Gift not found' });
+        }
+        
+        if (gift.claimed) {
+            return res.status(400).json({ ok: false, error: 'Gift already claimed' });
+        }
+        
+        if (gift.expires < Date.now()) {
+            gifts.delete(giftId);
+            return res.status(400).json({ ok: false, error: 'Gift expired' });
+        }
+        
+        // Получаем пользователя из сессии вместо IP
+        const username = getUserFromReq(req);
+        if (!username) {
+            return res.status(401).json({ ok: false, error: 'Необходимо войти в аккаунт для получения подарка' });
+        }
+        
+        // Проверяем, не получал ли уже этот пользователь данный подарок
+        const userGiftList = userGifts.get(username) || [];
+        if (userGiftList.includes(giftId)) {
+            return res.status(400).json({ ok: false, error: 'Вы уже получили этот подарок' });
+        }
+        
+        gift.claimed = true;
+        gift.claimedBy = username;
+        gift.claimedAt = new Date();
+        
+        claimedGifts.set(giftId, { userId: username, claimedAt: new Date() });
+        
+        if (!userGifts.has(username)) {
+            userGifts.set(username, []);
+        }
+        userGifts.get(username).push(giftId);
+        
+        saveGiftsToFile();
+        
+        res.json({ ok: true });
+    } catch (e) {
+        console.error('Claim gift error', e);
+        res.status(500).json({ ok: false, error: 'Internal server error' });
+    }
+});
+
+// User gifts endpoint
+app.get('/api/my-gifts', (req, res) => {
+    try {
+        const username = getUserFromReq(req);
+        if (!username) {
+            return res.status(401).json({ ok: false, error: 'Unauthorized' });
+        }
+        
+        const myGifts = [];
+        const userGiftIds = userGifts.get(username) || [];
+        
+        for (const giftId of userGiftIds) {
+            const gift = gifts.get(giftId);
+            const claimInfo = claimedGifts.get(giftId);
+            if (gift && claimInfo && claimInfo.userId === username) {
+                myGifts.push({
+                    id: giftId,
+                    emoji: gift.emoji,
+                    message: gift.message,
+                    from: gift.from,
+                    claimedAt: claimInfo.claimedAt.toLocaleString('ru-RU')
+                });
+            }
+        }
+        
+        res.json({ ok: true, gifts: myGifts, total: myGifts.length });
+    } catch (e) {
+        console.error('My gifts error', e);
+        res.status(500).json({ ok: false, error: 'Internal server error' });
+    }
+});
+
+// Reload gifts from file (admin only)
+app.post('/api/admin/reload-gifts', (req, res) => {
+    try {
+        const username = getUserFromReq(req);
+        if (!username || !isAdmin(username)) {
+            return res.status(403).json({ ok: false, error: 'Admin access required' });
+        }
+        
+        loadGiftsFromFile();
+        res.json({ ok: true, message: 'Gifts reloaded from file' });
+    } catch (e) {
+        console.error('Reload gifts error', e);
+        res.status(500).json({ ok: false, error: 'Internal server error' });
+    }
+});
+
+// Transfer gift to another user
+app.post('/api/transfer-gift', (req, res) => {
+    try {
+        const username = getUserFromReq(req);
+        if (!username) {
+            return res.status(401).json({ ok: false, error: 'Необходимо войти в аккаунт' });
+        }
+        
+        const { giftId, targetUsername } = req.body;
+        if (!giftId || !targetUsername) {
+            return res.status(400).json({ ok: false, error: 'Gift ID and target username required' });
+        }
+        
+        const gift = gifts.get(giftId);
+        if (!gift) {
+            return res.status(400).json({ ok: false, error: 'Подарок не найден' });
+        }
+        if (!gift.claimed || gift.claimedBy !== username) {
+            return res.status(400).json({ ok: false, error: 'Этот подарок вам не принадлежит' });
+        }
+        
+        // Check if target user exists
+        if (!userAuth.has(targetUsername)) {
+            return res.status(400).json({ ok: false, error: 'Пользователь не найден' });
+        }
+        
+        // Transfer gift
+        gift.claimedBy = targetUsername;
+        gift.claimedAt = new Date();
+        
+        // Update user gifts
+        const currentUserGifts = userGifts.get(username) || [];
+        const giftIndex = currentUserGifts.indexOf(giftId);
+        if (giftIndex > -1) {
+            currentUserGifts.splice(giftIndex, 1);
+            userGifts.set(username, currentUserGifts);
+        }
+        
+        if (!userGifts.has(targetUsername)) {
+            userGifts.set(targetUsername, []);
+        }
+        userGifts.get(targetUsername).push(giftId);
+        
+        // Update claimed gifts
+        claimedGifts.set(giftId, {
+            userId: targetUsername,
+            claimedAt: new Date()
+        });
+        
+        saveGiftsToFile();
+        
+        res.json({ ok: true, message: `Gift transferred to ${targetUsername}` });
+    } catch (e) {
+        console.error('Transfer gift error', e);
+        res.status(500).json({ ok: false, error: 'Internal server error' });
+    }
+});
+
+// Admin gifts list
+app.get('/api/admin/gifts', (req, res) => {
+    try {
+        const username = getUserFromReq(req);
+        if (!username || !isAdmin(username)) {
+            return res.status(403).json({ ok: false, error: 'Admin access required' });
+        }
+        
+        const giftsList = [];
+        for (const [giftId, gift] of gifts.entries()) {
+            giftsList.push({
+                id: giftId,
+                link: `${req.protocol}://${req.get('host')}/gift/${giftId}`,
+                claimed: gift.claimed,
+                claimedBy: gift.claimedBy || null,
+                claimedAt: gift.claimedAt ? new Date(gift.claimedAt).toLocaleString('ru-RU') : null,
+                expires: new Date(gift.expires).toLocaleString('ru-RU'),
+                message: gift.message
+            });
+        }
+        
+        res.json({ ok: true, gifts: giftsList, total: giftsList.length });
+    } catch (e) {
+        console.error('List gifts error', e);
+        res.status(500).json({ ok: false, error: 'Internal server error' });
+    }
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Test endpoint to add gift
+app.get('/add-beer-qweqwe', (req, res) => {
+    try {
+        const giftId = 'beer_' + Date.now();
+        
+        gifts.set(giftId, {
+            from: 'PivoGram',
+            message: 'Бесплатное пиво от PivoGram! 🍺',
+            emoji: '🍺',
+            expires: Date.now() + 7 * 24 * 60 * 60 * 1000,
+            claimed: true,
+            claimedBy: 'qweqwe',
+            claimedAt: new Date()
+        });
+        
+        if (!userGifts.has('qweqwe')) {
+            userGifts.set('qweqwe', []);
+        }
+        userGifts.get('qweqwe').push(giftId);
+        
+        claimedGifts.set(giftId, {
+            userId: 'qweqwe',
+            claimedAt: new Date()
+        });
+        
+        saveGiftsToFile();
+        
+        res.json({ ok: true, message: 'Beer added to qweqwe', giftId });
+    } catch (e) {
+        res.status(500).json({ ok: false, error: e.message });
+    }
 });
 
 // Initialize a default group/room
@@ -278,6 +757,7 @@ try {
     loadAvatarsFromFile();
     loadRolesFromFile();
     loadMessagesFromFile();
+    loadGiftsFromFile();
 } catch (e) {
     console.log('Using default settings');
 }
@@ -285,10 +765,33 @@ try {
 // Auth endpoints
 app.post('/api/register', async (req, res) => {
     try {
-        const { username, password } = req.body || {};
+        const { username, password, captchaSessionId, captchaAnswer } = req.body || {};
         if (!username || !password) {
             return res.status(400).json({ ok: false, error: 'Username and password are required' });
         }
+        
+        // Verify captcha
+        if (!captchaSessionId || !captchaAnswer) {
+            return res.status(400).json({ ok: false, error: 'Captcha is required' });
+        }
+        
+        const captchaSession = captchaSessions.get(captchaSessionId);
+        if (!captchaSession) {
+            return res.status(400).json({ ok: false, error: 'Invalid or expired captcha' });
+        }
+        
+        if (captchaSession.expires < Date.now()) {
+            captchaSessions.delete(captchaSessionId);
+            return res.status(400).json({ ok: false, error: 'Captcha expired' });
+        }
+        
+        if (captchaAnswer.toUpperCase() !== captchaSession.answer) {
+            return res.status(400).json({ ok: false, error: 'Incorrect captcha answer' });
+        }
+        
+        // Remove used captcha
+        captchaSessions.delete(captchaSessionId);
+        
         const uname = String(username).trim();
         if (uname.length < 3 || uname.length > 20) {
             return res.status(400).json({ ok: false, error: 'Username must be 3-20 characters' });
@@ -312,10 +815,33 @@ app.post('/api/register', async (req, res) => {
 
 app.post('/api/login', async (req, res) => {
     try {
-        const { username, password } = req.body || {};
+        const { username, password, captchaSessionId, captchaAnswer } = req.body || {};
         if (!username || !password) {
             return res.status(400).json({ ok: false, error: 'Username and password are required' });
         }
+        
+        // Verify captcha
+        if (!captchaSessionId || !captchaAnswer) {
+            return res.status(400).json({ ok: false, error: 'Captcha is required' });
+        }
+        
+        const captchaSession = captchaSessions.get(captchaSessionId);
+        if (!captchaSession) {
+            return res.status(400).json({ ok: false, error: 'Invalid or expired captcha' });
+        }
+        
+        if (captchaSession.expires < Date.now()) {
+            captchaSessions.delete(captchaSessionId);
+            return res.status(400).json({ ok: false, error: 'Captcha expired' });
+        }
+        
+        if (captchaAnswer.toUpperCase() !== captchaSession.answer) {
+            return res.status(400).json({ ok: false, error: 'Incorrect captcha answer' });
+        }
+        
+        // Remove used captcha
+        captchaSessions.delete(captchaSessionId);
+        
         const uname = String(username).trim();
         const stored = userAuth.get(uname);
         if (!stored) {
@@ -349,6 +875,112 @@ app.post('/api/logout', (req, res) => {
     }
     res.setHeader('Set-Cookie', 'auth=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax');
     return res.json({ ok: true });
+});
+
+// Change username endpoint
+app.post('/api/change-username', async (req, res) => {
+    try {
+        const username = getUserFromReq(req);
+        if (!username) {
+            return res.status(401).json({ ok: false, error: 'Unauthorized' });
+        }
+        
+        const { newUsername, currentPassword } = req.body || {};
+        if (!newUsername || !currentPassword) {
+            return res.status(400).json({ ok: false, error: 'New username and current password are required' });
+        }
+        
+        const newUname = String(newUsername).trim();
+        if (newUname.length < 3 || newUname.length > 20) {
+            return res.status(400).json({ ok: false, error: 'Username must be 3-20 characters' });
+        }
+        
+        // Check if new username already exists
+        if (userAuth.has(newUname) && newUname !== username) {
+            return res.status(409).json({ ok: false, error: 'Username already exists' });
+        }
+        
+        // Verify current password
+        const storedHash = userAuth.get(username);
+        if (!storedHash) {
+            return res.status(401).json({ ok: false, error: 'Invalid credentials' });
+        }
+        
+        const passwordValid = await bcrypt.compare(String(currentPassword), storedHash);
+        if (!passwordValid) {
+            return res.status(401).json({ ok: false, error: 'Invalid current password' });
+        }
+        
+        // Update username
+        if (newUname !== username) {
+            userAuth.delete(username);
+            userAuth.set(newUname, storedHash);
+            
+            // Update role if exists
+            const role = userRoles.get(username);
+            if (role) {
+                userRoles.delete(username);
+                userRoles.set(newUname, role);
+                saveRolesToFile();
+            }
+            
+            // Update avatar if exists
+            const avatarUrl = avatars.get(username);
+            if (avatarUrl) {
+                avatars.delete(username);
+                avatars.set(newUname, avatarUrl);
+                saveAvatarsToFile();
+            }
+            
+            saveUsersToFile();
+        }
+        
+        return res.json({ ok: true });
+    } catch (e) {
+        console.error('Change username error', e);
+        return res.status(500).json({ ok: false, error: 'Internal server error' });
+    }
+});
+
+// Change password endpoint
+app.post('/api/change-password', async (req, res) => {
+    try {
+        const username = getUserFromReq(req);
+        if (!username) {
+            return res.status(401).json({ ok: false, error: 'Unauthorized' });
+        }
+        
+        const { currentPassword, newPassword } = req.body || {};
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ ok: false, error: 'Current and new passwords are required' });
+        }
+        
+        const newPwd = String(newPassword);
+        if (newPwd.length < 6 || newPwd.length > 100) {
+            return res.status(400).json({ ok: false, error: 'Password must be 6-100 characters' });
+        }
+        
+        // Verify current password
+        const storedHash = userAuth.get(username);
+        if (!storedHash) {
+            return res.status(401).json({ ok: false, error: 'Invalid credentials' });
+        }
+        
+        const passwordValid = await bcrypt.compare(String(currentPassword), storedHash);
+        if (!passwordValid) {
+            return res.status(401).json({ ok: false, error: 'Invalid current password' });
+        }
+        
+        // Update password
+        const newHash = await bcrypt.hash(newPwd, 10);
+        userAuth.set(username, newHash);
+        saveUsersToFile();
+        
+        return res.json({ ok: true });
+    } catch (e) {
+        console.error('Change password error', e);
+        return res.status(500).json({ ok: false, error: 'Internal server error' });
+    }
 });
 
 // Upload photo endpoint
