@@ -1,0 +1,78 @@
+{
+  "gifts": {
+    "9eadd516ee60119b35d5eb1c324ab059": {
+      "from": "PivoGram",
+      "message": "Бесплатное пиво от PivoGram! 🍺",
+      "emoji": "🍺",
+      "expires": 1757015991848,
+      "claimed": true,
+      "claimedBy": "127.0.0.1",
+      "claimedAt": "2025-08-28T19:59:58.394Z"
+    },
+    "c670f61c08d08ace0b24b6ce458635d4": {
+      "from": "PivoGram",
+      "message": "Бесплатное пиво от PivoGram! 🍺",
+      "emoji": "🍺",
+      "expires": 1757016494618,
+      "claimed": false
+    },
+    "02d40bd87172a8cb0c116723ff45d46f": {
+      "from": "PivoGram",
+      "message": "Бесплатное пиво от PivoGram! 🍺",
+      "emoji": "🍺",
+      "expires": 1757019978310,
+      "claimed": false
+    },
+    "0b2ace68d67bdd1830b639c5f24a112f": {
+      "from": "PivoGram",
+      "message": "Бесплатное пиво от PivoGram! 🍺",
+      "emoji": "🍺",
+      "expires": 1757020052302,
+      "claimed": false
+    },
+    "3d54c57f20d658baf73f718b6fe7dd4d": {
+      "from": "PivoGram",
+      "message": "Бесплатное пиво от PivoGram! 🍺",
+      "emoji": "🍺",
+      "expires": 1757020055750,
+      "claimed": false
+    },
+    "45204301b969ef29575658de11ccfa70": {
+      "from": "PivoGram",
+      "message": "Бесплатное пиво от PivoGram! 🍺",
+      "emoji": "🍺",
+      "expires": 1757068020224,
+      "claimed": false
+    },
+    "b4928df7d0a412c97c2111334c49be92": {
+      "from": "PivoGram",
+      "message": "Бесплатное пиво от PivoGram! 🍺",
+      "emoji": "🍺",
+      "expires": 1757068565719,
+      "claimed": true,
+      "claimedBy": "qweqwe",
+      "claimedAt": "2025-08-29T10:36:11.295Z"
+    },
+    "fc038ea3f469454075f715078018c2d3": {
+      "from": "PivoGram",
+      "message": "Бесплатное пиво от PivoGram! 🍺",
+      "emoji": "🍺",
+      "expires": 1757068858089,
+      "claimed": true,
+      "claimedBy": "admin",
+      "claimedAt": "2025-08-29T10:46:36.551Z"
+    }
+  },
+  "userGifts": {
+    "qweqwe": [],
+    "admin": [
+      "fc038ea3f469454075f715078018c2d3"
+    ]
+  },
+  "claimedGifts": {
+    "fc038ea3f469454075f715078018c2d3": {
+      "userId": "admin",
+      "claimedAt": "2025-08-29T10:46:36.551Z"
+    }
+  }
+}
