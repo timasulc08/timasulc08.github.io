@@ -2459,6 +2459,31 @@
             min-height: 52px;
             font-weight: 600;
         }
+        
+        /* Captcha styles for mobile */
+        @media (max-width: 768px) {
+            #captchaContainer {
+                margin: 20px 0 !important;
+            }
+            
+            #captchaQuestion {
+                font-size: 28px !important;
+                padding: 20px !important;
+            }
+            
+            #captchaInput {
+                font-size: 18px !important;
+                padding: 16px !important;
+                border-radius: 12px !important;
+            }
+            
+            #refreshCaptcha {
+                padding: 12px 16px !important;
+                font-size: 14px !important;
+                border-radius: 8px !important;
+                margin-top: 12px !important;
+            }
+        }
 
         /* Phone Mode Animations */
         @keyframes slideInUp {
@@ -2735,6 +2760,35 @@
                 border-radius: 12px;
                 min-height: 48px;
             }
+            
+            /* Captcha mobile styles */
+            #captchaContainer {
+                margin: 20px 0 !important;
+            }
+            
+            #captchaQuestion {
+                font-size: 28px !important;
+                padding: 20px !important;
+            }
+            
+            #captchaInput {
+                font-size: 18px !important;
+                padding: 16px !important;
+                border-radius: 12px !important;
+                border: 2px solid #40444b !important;
+                background: #2f3136 !important;
+                color: #dcddde !important;
+            }
+            
+            #refreshCaptcha {
+                padding: 12px 16px !important;
+                font-size: 14px !important;
+                border-radius: 8px !important;
+                margin-top: 12px !important;
+                background: #4f545c !important;
+                color: #dcddde !important;
+                border: none !important;
+            }
 
             /* Video container for phone */
             .video-container {
@@ -2873,6 +2927,26 @@
                 margin: 30px;
                 min-width: calc(100vw - 60px);
                 max-width: calc(100vw - 60px);
+            }
+            
+            /* Captcha tablet styles */
+            #captchaContainer {
+                margin: 18px 0 !important;
+            }
+            
+            #captchaQuestion {
+                font-size: 26px !important;
+                padding: 18px !important;
+            }
+            
+            #captchaInput {
+                font-size: 17px !important;
+                padding: 15px !important;
+            }
+            
+            #refreshCaptcha {
+                padding: 10px 14px !important;
+                font-size: 13px !important;
             }
 
             .video-container {
@@ -3180,6 +3254,14 @@
             <h2 id="authTitle">Login</h2>
             <input type="text" id="usernameInput" placeholder="Username (3-20 chars)" maxlength="20">
             <input type="password" id="passwordInput" placeholder="Password (6-100 chars)" maxlength="100">
+            <div id="captchaContainer" style="display:none;margin:15px 0;">
+                <div style="background:#2f3136;border:1px solid #40444b;border-radius:8px;padding:15px;margin-bottom:10px;text-align:center;">
+                    <div id="captchaPrompt" style="color:#dcddde;margin-bottom:8px;font-size:14px;">Enter the code to confirm:</div>
+                    <div id="captchaQuestion" style="color:#5865f2;font-size:24px;font-weight:bold;font-family:monospace;letter-spacing:4px;"></div>
+                </div>
+                <input type="text" id="captchaInput" placeholder="Enter answer" maxlength="5" style="width:100%;padding:12px;border:1px solid #40444b;border-radius:4px;background:#2f3136;color:#dcddde;font-size:16px;text-align:center;text-transform:uppercase;">
+                <button id="refreshCaptcha" style="margin-top:8px;background:#4f545c;border:none;color:#dcddde;padding:8px 12px;border-radius:4px;cursor:pointer;font-size:12px;">🔄 Refresh example</button>
+            </div>
             <div class="modal-buttons">
                 <button id="authPrimaryBtn" class="modal-btn primary">Login</button>
                 <button id="authToggleBtn" class="modal-btn secondary">Need an account? Register</button>
@@ -3246,6 +3328,7 @@
                     <input type="file" id="avatarInput" accept="image/*" style="display:none" />
                     <button id="avatarBtn" class="call-btn" title="Change avatar">🖼️</button>
                     <button id="adminNotifyBtn" class="call-btn" title="Send Notification" style="display:none;">📢</button>
+                    <button id="adminGiftsBtn" class="call-btn" title="Управление подарками" style="display:none;">🎁</button>
                     <button id="inviteLinkBtn" class="call-btn" title="Copy invite link">🔗</button>
                     <select id="themeSelector" class="call-btn" title="Theme" style="background:none;border:none;color:#b9bbbe;cursor:pointer;padding:6px;border-radius:4px;font-size:12px;">
                         <option value="default">💫 Default</option>
@@ -3255,6 +3338,8 @@
                         <option value="red">❤️ Red</option>
                     </select>
                     <button id="telegramBtn" class="call-btn" title="Telegram Channel">📱</button>
+
+                    <button id="myGiftsBtn" class="call-btn" title="Мои подарки">🎁</button>
                     <button id="settingsBtn" class="call-btn" title="Настройки">⚙️</button>
                     <button id="logoutBtn" class="call-btn" title="Logout">⎋</button>
                     <button id="mobileMenuToggle" class="call-btn" title="Menu" style="display:none;">⋮</button>
@@ -3287,6 +3372,80 @@
             </div>
         </div>
     </div>
+
+
+
+    <!-- Admin Gifts Modal -->
+    <div id="adminGiftsModal" class="modal">
+        <div class="modal-content" style="max-width:600px;">
+            <h2>🎁 Управление подарками</h2>
+            <div style="margin-bottom:20px;">
+                <label style="color:#dcddde;margin-bottom:10px;display:block;">Выберите тип подарка:</label>
+                <select id="giftTypeSelect" style="width:100%;padding:12px;background:#40444b;color:#dcddde;border:1px solid #5d6269;border-radius:4px;margin-bottom:15px;">
+                    <option value="beer">🍺 FREE пиво</option>
+                    <option value="burger">🍔 FREE бургер</option>
+                    <option value="error">❌ ERROR (Garry's Mod)</option>
+                </select>
+                <div class="modal-buttons">
+                    <button id="createGiftBtn" class="modal-btn primary">Создать подарок</button>
+                    <button id="refreshGiftsBtn" class="modal-btn secondary">🔄 Обновить</button>
+                    <button id="reloadGiftsBtn" class="modal-btn secondary">📁 Перезагрузить из файла</button>
+                </div>
+            </div>
+            <div id="giftsList" style="max-height:400px;overflow-y:auto;background:#2f3136;border-radius:8px;padding:15px;">
+                <p style="color:#72767d;text-align:center;">Загрузка...</p>
+            </div>
+            <div class="modal-buttons" style="margin-top:20px;">
+                <button id="closeAdminGiftsBtn" class="modal-btn secondary">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- My Gifts Modal -->
+    <div id="myGiftsModal" class="modal">
+        <div class="modal-content" style="max-width:600px;background:linear-gradient(135deg,#2f3136,#36393f);border:2px solid rgba(255,255,255,0.1);box-shadow:0 25px 60px rgba(0,0,0,0.5);">
+            <h2 style="background:linear-gradient(45deg,#ff6b35,#f7931e);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-align:center;font-size:28px;margin-bottom:25px;">🎁 Мои подарки</h2>
+            <div id="myGiftsList" style="max-height:500px;overflow-y:auto;background:transparent;border-radius:15px;padding:20px;">
+                <div style="text-align:center;padding:40px;">
+                    <div style="font-size:40px;margin-bottom:15px;animation:spin 2s linear infinite;">🔄</div>
+                    <p style="color:#72767d;font-size:16px;">Загрузка подарков...</p>
+                </div>
+            </div>
+            <div class="modal-buttons" style="margin-top:25px;gap:15px;">
+                <button id="refreshMyGiftsBtn" class="modal-btn secondary" style="background:linear-gradient(45deg,#4f545c,#5d6269);border:none;padding:12px 20px;border-radius:12px;color:white;font-weight:600;">🔄 Обновить</button>
+                <button id="closeMyGiftsBtn" class="modal-btn secondary" style="background:linear-gradient(45deg,#ed4245,#c03537);border:none;padding:12px 20px;border-radius:12px;color:white;font-weight:600;">✖ Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gift Detail Modal -->
+    <div id="giftDetailModal" class="modal">
+        <div class="modal-content" style="max-width:700px;background:linear-gradient(135deg,#2f3136,#36393f);border:2px solid rgba(255,255,255,0.1);box-shadow:0 25px 60px rgba(0,0,0,0.5);">
+            <h2 id="giftDetailTitle" style="background:linear-gradient(45deg,#ff6b35,#f7931e);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-align:center;font-size:28px;margin-bottom:25px;">🍺 Детали подарка</h2>
+            <div style="display:flex;gap:30px;align-items:center;">
+                <div id="beer3DContainer" style="width:300px;height:300px;background:radial-gradient(circle,rgba(255,193,7,0.1),transparent);border-radius:20px;position:relative;overflow:hidden;"></div>
+                <div style="flex:1;">
+                    <div id="giftDetailInfo" style="color:#dcddde;font-size:16px;line-height:1.6;">
+                        <div style="margin-bottom:15px;"><strong style="color:#ff6b35;">Подарок:</strong> <span id="giftMessage"></span></div>
+                        <div style="margin-bottom:15px;"><strong style="color:#ff6b35;">От:</strong> <span id="giftFrom"></span></div>
+                        <div style="margin-bottom:15px;"><strong style="color:#ff6b35;">Получено:</strong> <span id="giftDate"></span></div>
+                        <div style="margin-top:25px;padding:15px;background:rgba(255,107,53,0.1);border-radius:12px;border-left:4px solid #ff6b35;">
+                            <div style="font-size:14px;color:#b9bbbe;">🎉 Поздравляем! Вы получили этот замечательный подарок. Наслаждайтесь!</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-buttons" style="margin-top:25px;justify-content:center;">
+                <button id="closeGiftDetailBtn" class="modal-btn secondary" style="background:linear-gradient(45deg,#4f545c,#5d6269);border:none;padding:12px 24px;border-radius:12px;color:white;font-weight:600;">Закрыть</button>
+            </div>
+        </div>
+    </div>
+    <style>
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
 
     <!-- Settings Modal -->
     <div id="settingsModal" class="modal">
@@ -3324,6 +3483,8 @@
         </div>
     </div>
 
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <!-- Socket.IO -->
     <script src="/socket.io/socket.io.js"></script>
     <!-- Client JavaScript -->
@@ -3368,9 +3529,17 @@
                             📢
                             <span>Notify</span>
                         </button>
+                        <button class="mobile-menu-item" onclick="document.getElementById('adminGiftsBtn').click(); this.closest('.mobile-menu').remove();" ${document.getElementById('adminGiftsBtn').style.display === 'none' ? 'style="display:none;"' : ''}>
+                            🎁
+                            <span>Gifts</span>
+                        </button>
                         <button class="mobile-menu-item" onclick="showThemeMenu(this.closest('.mobile-menu'));">
                             🎨
                             <span>Themes</span>
+                        </button>
+                        <button class="mobile-menu-item" onclick="document.getElementById('myGiftsBtn').click(); this.closest('.mobile-menu').remove();">
+                            🎁
+                            <span>My Gifts</span>
                         </button>
                         <button class="mobile-menu-item" onclick="document.getElementById('settingsBtn').click(); this.closest('.mobile-menu').remove();">
                             ⚙️
@@ -3530,8 +3699,337 @@
             });
         })();
         
+        // Gift detail modal functions
+        let giftScene, giftRenderer, giftCamera, giftMesh;
+        
+        window.showGiftDetail = function(giftId, emoji, message, from, claimedAt) {
+            document.getElementById('giftDetailModal').style.display = 'flex';
+            document.getElementById('giftMessage').textContent = message;
+            document.getElementById('giftFrom').textContent = from;
+            document.getElementById('giftDate').textContent = claimedAt;
+            
+            // Initialize 3D model only on desktop
+            if (window.innerWidth > 768) {
+                setTimeout(() => {
+                    if (emoji === '🍺') {
+                        init3DBeer();
+                    } else if (emoji === '❌') {
+                        init3DError();
+                    }
+                }, 100);
+            }
+        };
+        
+        function init3DBeer() {
+            const container = document.getElementById('beer3DContainer');
+            if (!container || giftRenderer) return;
+            
+            // Scene setup
+            giftScene = new THREE.Scene();
+            giftCamera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+            giftRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            giftRenderer.setSize(300, 300);
+            giftRenderer.setClearColor(0x000000, 0);
+            container.appendChild(giftRenderer.domElement);
+            
+            // Enhanced lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            giftScene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffc107, 1.2);
+            directionalLight.position.set(5, 5, 5);
+            directionalLight.castShadow = true;
+            giftScene.add(directionalLight);
+            
+            const pointLight = new THREE.PointLight(0xffc107, 0.8, 100);
+            pointLight.position.set(-5, 5, 5);
+            giftScene.add(pointLight);
+            
+            const spotLight = new THREE.SpotLight(0xffffff, 0.5);
+            spotLight.position.set(0, 8, 0);
+            spotLight.target.position.set(0, 0, 0);
+            giftScene.add(spotLight);
+            giftScene.add(spotLight.target);
+            
+            // Particle system for steam
+            const particles = new THREE.BufferGeometry();
+            const particleCount = 50;
+            const positions = new Float32Array(particleCount * 3);
+            
+            for(let i = 0; i < particleCount * 3; i += 3) {
+                positions[i] = (Math.random() - 0.5) * 0.5;
+                positions[i + 1] = 2 + Math.random() * 2;
+                positions[i + 2] = (Math.random() - 0.5) * 0.5;
+            }
+            
+            particles.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const particleMaterial = new THREE.PointsMaterial({ 
+                color: 0xffffff, 
+                size: 0.05, 
+                transparent: true, 
+                opacity: 0.3 
+            });
+            const steam = new THREE.Points(particles, particleMaterial);
+            giftScene.add(steam);
+            
+            // Create beer mug geometry
+            const group = new THREE.Group();
+            
+            // Mug body (cylinder)
+            const mugGeometry = new THREE.CylinderGeometry(1.2, 1, 2.5, 16);
+            const mugMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0xd4af37,
+                shininess: 100,
+                transparent: true,
+                opacity: 0.9
+            });
+            const mug = new THREE.Mesh(mugGeometry, mugMaterial);
+            group.add(mug);
+            
+            // Beer foam (top cylinder)
+            const foamGeometry = new THREE.CylinderGeometry(1.15, 1.15, 0.3, 16);
+            const foamMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.8
+            });
+            const foam = new THREE.Mesh(foamGeometry, foamMaterial);
+            foam.position.y = 1.4;
+            group.add(foam);
+            
+            // Beer liquid
+            const beerGeometry = new THREE.CylinderGeometry(1.1, 0.95, 2.3, 16);
+            const beerMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0xffa500,
+                transparent: true,
+                opacity: 0.7
+            });
+            const beer = new THREE.Mesh(beerGeometry, beerMaterial);
+            beer.position.y = -0.1;
+            group.add(beer);
+            
+            // Handle
+            const handleGeometry = new THREE.TorusGeometry(0.5, 0.08, 8, 16, Math.PI);
+            const handleMaterial = new THREE.MeshPhongMaterial({ color: 0xd4af37 });
+            const handle = new THREE.Mesh(handleGeometry, handleMaterial);
+            handle.position.set(1.1, 0, 0);
+            handle.rotation.z = -Math.PI / 2;
+            group.add(handle);
+            
+            // Bubbles in beer
+            for(let i = 0; i < 15; i++) {
+                const bubbleGeometry = new THREE.SphereGeometry(0.02 + Math.random() * 0.03, 8, 6);
+                const bubbleMaterial = new THREE.MeshPhongMaterial({ 
+                    color: 0xffffff, 
+                    transparent: true, 
+                    opacity: 0.6 
+                });
+                const bubble = new THREE.Mesh(bubbleGeometry, bubbleMaterial);
+                bubble.position.set(
+                    (Math.random() - 0.5) * 1.8,
+                    -1 + Math.random() * 2,
+                    (Math.random() - 0.5) * 1.8
+                );
+                group.add(bubble);
+            }
+            
+            // Foam texture
+            for(let i = 0; i < 8; i++) {
+                const foamBubbleGeometry = new THREE.SphereGeometry(0.05 + Math.random() * 0.08, 6, 4);
+                const foamBubbleMaterial = new THREE.MeshPhongMaterial({ 
+                    color: 0xffffff, 
+                    transparent: true, 
+                    opacity: 0.9 
+                });
+                const foamBubble = new THREE.Mesh(foamBubbleGeometry, foamBubbleMaterial);
+                foamBubble.position.set(
+                    (Math.random() - 0.5) * 2,
+                    1.3 + Math.random() * 0.3,
+                    (Math.random() - 0.5) * 2
+                );
+                group.add(foamBubble);
+            }
+            
+            // Mug rim
+            const rimGeometry = new THREE.TorusGeometry(1.2, 0.05, 8, 16);
+            const rimMaterial = new THREE.MeshPhongMaterial({ color: 0xb8860b });
+            const rim = new THREE.Mesh(rimGeometry, rimMaterial);
+            rim.position.y = 1.25;
+            group.add(rim);
+            
+            giftMesh = group;
+            giftScene.add(giftMesh);
+            
+            giftCamera.position.z = 5;
+            giftCamera.position.y = 1;
+            
+            // Animation loop
+            function animate() {
+                if (!giftMesh || !giftRenderer) return;
+                requestAnimationFrame(animate);
+                
+                giftMesh.rotation.y += 0.01;
+                giftMesh.rotation.x = Math.sin(Date.now() * 0.001) * 0.1;
+                
+                // Animate steam particles
+                const steamPositions = steam.geometry.attributes.position.array;
+                for(let i = 1; i < steamPositions.length; i += 3) {
+                    steamPositions[i] += 0.02;
+                    if(steamPositions[i] > 5) {
+                        steamPositions[i] = 2;
+                    }
+                }
+                steam.geometry.attributes.position.needsUpdate = true;
+                
+                giftRenderer.render(giftScene, giftCamera);
+            }
+            animate();
+        }
+        
+        function init3DError() {
+            const container = document.getElementById('beer3DContainer');
+            if (!container || giftRenderer) return;
+            
+            // Scene setup
+            giftScene = new THREE.Scene();
+            giftCamera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+            giftRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            giftRenderer.setSize(300, 300);
+            giftRenderer.setClearColor(0x000000, 0);
+            container.appendChild(giftRenderer.domElement);
+            
+            // Red lighting for ERROR
+            const ambientLight = new THREE.AmbientLight(0xff0000, 0.3);
+            giftScene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xff0000, 1.5);
+            directionalLight.position.set(5, 5, 5);
+            giftScene.add(directionalLight);
+            
+            const pointLight = new THREE.PointLight(0xff0000, 1, 100);
+            pointLight.position.set(-5, 5, 5);
+            giftScene.add(pointLight);
+            
+            // Create ERROR model
+            const group = new THREE.Group();
+            
+            // Main ERROR cube
+            const cubeGeometry = new THREE.BoxGeometry(2, 2, 2);
+            const cubeMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0xff00ff,
+                transparent: true,
+                opacity: 0.8,
+                wireframe: true
+            });
+            const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+            group.add(cube);
+            
+            // ERROR text plane
+            const textGeometry = new THREE.PlaneGeometry(3, 1);
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, 512, 128);
+            ctx.fillStyle = '#ff00ff';
+            ctx.font = 'bold 48px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('ERROR', 256, 80);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            const textMaterial = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+            const textPlane = new THREE.Mesh(textGeometry, textMaterial);
+            textPlane.position.y = 2.5;
+            group.add(textPlane);
+            
+            // Glitch particles
+            const glitchParticles = new THREE.BufferGeometry();
+            const glitchCount = 100;
+            const glitchPositions = new Float32Array(glitchCount * 3);
+            
+            for(let i = 0; i < glitchCount * 3; i += 3) {
+                glitchPositions[i] = (Math.random() - 0.5) * 10;
+                glitchPositions[i + 1] = (Math.random() - 0.5) * 10;
+                glitchPositions[i + 2] = (Math.random() - 0.5) * 10;
+            }
+            
+            glitchParticles.setAttribute('position', new THREE.BufferAttribute(glitchPositions, 3));
+            const glitchMaterial = new THREE.PointsMaterial({ 
+                color: 0xff00ff, 
+                size: 0.1, 
+                transparent: true, 
+                opacity: 0.6 
+            });
+            const glitch = new THREE.Points(glitchParticles, glitchMaterial);
+            giftScene.add(glitch);
+            
+            giftMesh = group;
+            giftScene.add(giftMesh);
+            
+            giftCamera.position.z = 6;
+            giftCamera.position.y = 1;
+            
+            // Animation loop
+            function animate() {
+                if (!giftMesh || !giftRenderer) return;
+                requestAnimationFrame(animate);
+                
+                // Glitchy rotation
+                giftMesh.rotation.y += 0.02 + Math.random() * 0.01;
+                giftMesh.rotation.x += 0.01 + Math.random() * 0.005;
+                giftMesh.rotation.z = Math.sin(Date.now() * 0.003) * 0.2;
+                
+                // Glitch effect
+                if (Math.random() < 0.1) {
+                    giftMesh.position.x = (Math.random() - 0.5) * 0.2;
+                    giftMesh.position.y = (Math.random() - 0.5) * 0.2;
+                } else {
+                    giftMesh.position.x = 0;
+                    giftMesh.position.y = 0;
+                }
+                
+                // Animate glitch particles
+                const glitchPositions = glitch.geometry.attributes.position.array;
+                for(let i = 0; i < glitchPositions.length; i += 3) {
+                    glitchPositions[i] += (Math.random() - 0.5) * 0.1;
+                    glitchPositions[i + 1] += (Math.random() - 0.5) * 0.1;
+                    glitchPositions[i + 2] += (Math.random() - 0.5) * 0.1;
+                }
+                glitch.geometry.attributes.position.needsUpdate = true;
+                
+                giftRenderer.render(giftScene, giftCamera);
+            }
+            animate();
+        }
+        
+        function cleanup3DGift() {
+            if (giftRenderer) {
+                const container = document.getElementById('beer3DContainer');
+                if (container && giftRenderer.domElement) {
+                    container.removeChild(giftRenderer.domElement);
+                }
+                giftRenderer.dispose();
+                giftRenderer = null;
+            }
+            giftScene = null;
+            giftCamera = null;
+            giftMesh = null;
+        }
+        
+        // Close gift detail modal
+        document.getElementById('closeGiftDetailBtn').addEventListener('click', () => {
+            document.getElementById('giftDetailModal').style.display = 'none';
+            cleanup3DGift();
+        });
+        
         // Initialize the app
         const app = new DiscordApp();
+        window.app = app;
+        
+        window.transferGift = function(giftId) {
+            app.transferGift(giftId);
+        };
         
         // Фикс для мобильных - автоскролл при фокусе на input
         const messageInput = document.getElementById('messageInput');

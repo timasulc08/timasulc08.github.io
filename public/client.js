@@ -80,7 +80,12 @@ class DiscordApp {
                 min_ago: 'min ago',
                 hour_ago: 'h ago',
                 day_ago: 'd ago',
-                admin_notification_prompt: 'Enter notification message for all users:'
+                admin_notification_prompt: 'Enter notification message for all users:',
+                captcha_solve_prompt: 'Enter the code to confirm:',
+                captcha_answer_placeholder: 'Enter code',
+                captcha_refresh: '🔄 Refresh code',
+                captcha_required: 'Please enter the code',
+                captcha_error: 'Captcha error, try refreshing'
             },
             ru: {
                 server_name: 'PivoGram',
@@ -133,7 +138,12 @@ class DiscordApp {
                 min_ago: 'мин назад',
                 hour_ago: 'ч назад',
                 day_ago: 'д назад',
-                admin_notification_prompt: 'Введи текст уведомления для всех:'
+                admin_notification_prompt: 'Введи текст уведомления для всех:',
+                captcha_solve_prompt: 'Введите код для подтверждения:',
+                captcha_answer_placeholder: 'Введите код',
+                captcha_refresh: '🔄 Обновить код',
+                captcha_required: 'Пожалуйста, введите код',
+                captcha_error: 'Ошибка капчи, попробуйте обновить'
             }
         };
         
@@ -364,6 +374,8 @@ class DiscordApp {
             });
         }
 
+
+        
         // Settings
         const settingsBtn = document.getElementById('settingsBtn');
         if (settingsBtn) {
@@ -442,6 +454,16 @@ class DiscordApp {
                 }
             });
         }
+        
+        const adminGiftsBtn = document.getElementById('adminGiftsBtn');
+        if (adminGiftsBtn) {
+            adminGiftsBtn.addEventListener('click', () => this.showAdminGiftsModal());
+        }
+        
+        const myGiftsBtn = document.getElementById('myGiftsBtn');
+        if (myGiftsBtn) {
+            myGiftsBtn.addEventListener('click', () => this.showMyGiftsModal());
+        }
     }
     
     showLoginModal() {
@@ -452,10 +474,31 @@ class DiscordApp {
         const passwordInput = document.getElementById('passwordInput');
         const authTitle = document.getElementById('authTitle');
         const authError = document.getElementById('authError');
+        const captchaContainer = document.getElementById('captchaContainer');
+        const captchaInput = document.getElementById('captchaInput');
+        const refreshCaptcha = document.getElementById('refreshCaptcha');
 
         let mode = 'login'; // or 'register'
+        let captchaSessionId = null;
 
-        const applyMode = () => {
+        const loadCaptcha = async () => {
+            try {
+                const res = await fetch('/api/captcha');
+                const data = await res.json();
+                if (res.ok && data.ok) {
+                    captchaSessionId = data.sessionId;
+                    document.getElementById('captchaQuestion').textContent = data.question;
+                    captchaInput.value = '';
+                } else {
+                    throw new Error(data.error || 'Failed to load captcha');
+                }
+            } catch (err) {
+                console.error('Captcha load error:', err);
+                document.getElementById('captchaQuestion').textContent = this.t('captcha_error');
+            }
+        };
+
+        const applyMode = async () => {
             authTitle.textContent = mode === 'login' ? this.t('login') : this.t('register');
             authPrimaryBtn.textContent = mode === 'login' ? this.t('login') : this.t('register');
             authToggleBtn.textContent = mode === 'login' ? this.t('need_account_register') : this.t('have_account_login');
@@ -463,8 +506,21 @@ class DiscordApp {
             authError.textContent = '';
             usernameInput.value = '';
             passwordInput.value = '';
+            captchaInput.value = '';
+            
+            // Show captcha for both login and registration
+            captchaContainer.style.display = 'block';
+            // Apply localization to captcha elements
+            document.getElementById('captchaPrompt').textContent = this.t('captcha_solve_prompt');
+            document.getElementById('captchaInput').placeholder = this.t('captcha_answer_placeholder');
+            document.getElementById('refreshCaptcha').textContent = this.t('captcha_refresh');
+            await loadCaptcha();
+            
             usernameInput.focus();
         };
+
+        // Refresh captcha button
+        refreshCaptcha.addEventListener('click', loadCaptcha);
 
         const submit = async () => {
             const username = usernameInput.value.trim();
@@ -479,11 +535,32 @@ class DiscordApp {
                 authError.textContent = this.t('auth_password_requirements');
                 return;
             }
+            
+            // Check captcha for both login and registration
+            const captchaAnswer = captchaInput.value.trim();
+            if (!captchaAnswer) {
+                authError.style.display = 'block';
+                authError.textContent = this.t('captcha_required');
+                return;
+            }
+            if (!captchaSessionId) {
+                authError.style.display = 'block';
+                authError.textContent = this.t('captcha_error');
+                return;
+            }
+            
             try {
+                const requestBody = { 
+                    username, 
+                    password,
+                    captchaSessionId: captchaSessionId,
+                    captchaAnswer: captchaInput.value.trim()
+                };
+                
                 const res = await fetch(mode === 'login' ? '/api/login' : '/api/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
+                    body: JSON.stringify(requestBody)
                 });
                 const data = await res.json();
                 if (!res.ok || !data.ok) {
@@ -492,7 +569,7 @@ class DiscordApp {
                 // For register, auto switch to login after success
                 if (mode === 'register') {
                     mode = 'login';
-                    applyMode();
+                    await applyMode();
                     authError.style.display = 'block';
                     authError.style.color = '#43b581';
                     authError.textContent = this.t('register_success');
@@ -500,6 +577,7 @@ class DiscordApp {
                 }
                 // Login success
                 this.username = username;
+                localStorage.setItem('currentUser', username);
                 this.hideLoginModal();
                 this.connectToServer();
                 // If URL had invite link, ensure we join that room
@@ -511,18 +589,22 @@ class DiscordApp {
                 authError.style.display = 'block';
                 authError.style.color = '#ed4245';
                 authError.textContent = err.message;
+                
+                // Reload captcha on error
+                await loadCaptcha();
             }
         };
 
         authPrimaryBtn.onclick = submit;
-        authToggleBtn.onclick = () => {
+        authToggleBtn.onclick = async () => {
             mode = mode === 'login' ? 'register' : 'login';
             authError.style.color = '#ed4245';
-            applyMode();
+            await applyMode();
         };
 
         usernameInput.onkeypress = (e) => { if (e.key === 'Enter') submit(); };
         passwordInput.onkeypress = (e) => { if (e.key === 'Enter') submit(); };
+        captchaInput.onkeypress = (e) => { if (e.key === 'Enter') submit(); };
 
         this._setAuthModeTexts = applyMode;
         applyMode();
@@ -575,11 +657,13 @@ class DiscordApp {
         // User management events
         this.socket.on('users-update', (users) => {
             this.updateUsersList(users);
-            // Show admin button if user is admin
+            // Show admin buttons if user is admin
             const currentUser = users.find(u => u.username === this.username);
             if (currentUser && currentUser.role === 'admin') {
                 const adminBtn = document.getElementById('adminNotifyBtn');
+                const giftsBtn = document.getElementById('adminGiftsBtn');
                 if (adminBtn) adminBtn.style.display = 'inline-block';
+                if (giftsBtn) giftsBtn.style.display = 'inline-block';
             }
         });
         
@@ -932,6 +1016,13 @@ class DiscordApp {
             // Auth placeholders (buttons handled by applyMode)
             setPlaceholder('usernameInput', 'auth_username_placeholder');
             setPlaceholder('passwordInput', 'auth_password_placeholder');
+            setPlaceholder('captchaInput', 'captcha_answer_placeholder');
+            
+            // Captcha elements
+            const captchaPrompt = document.getElementById('captchaPrompt');
+            if (captchaPrompt) captchaPrompt.textContent = this.t('captcha_solve_prompt');
+            const refreshCaptcha = document.getElementById('refreshCaptcha');
+            if (refreshCaptcha) refreshCaptcha.textContent = this.t('captcha_refresh');
 
             // Call modal defaults
             setText('acceptCall', 'call_accept');
@@ -1578,6 +1669,387 @@ class DiscordApp {
                 tag: 'message',
                 requireInteraction: false
             });
+        }
+    }
+    
+
+    
+    async showAdminGiftsModal() {
+        document.getElementById('adminGiftsModal').style.display = 'flex';
+        await this.loadGiftsList();
+        
+        document.getElementById('createGiftBtn').onclick = async () => {
+            try {
+                const giftType = document.getElementById('giftTypeSelect').value;
+                const res = await fetch('/api/admin/create-gift', { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: giftType })
+                });
+                const data = await res.json();
+                if (res.ok && data.ok) {
+                    let giftName;
+                    if (giftType === 'beer') {
+                        giftName = '🍺 FREE пиво';
+                    } else if (giftType === 'burger') {
+                        giftName = '🍔 FREE бургер';
+                    } else {
+                        giftName = '❌ ERROR';
+                    }
+                    alert(`${giftName} создан!\n🔗 Ссылка: ${data.giftLink}`);
+                    await this.loadGiftsList();
+                } else {
+                    alert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+                }
+            } catch (err) {
+                alert('❌ Ошибка: ' + err.message);
+            }
+        };
+        
+        document.getElementById('refreshGiftsBtn').onclick = () => this.loadGiftsList();
+        document.getElementById('reloadGiftsBtn').onclick = async () => {
+            try {
+                const res = await fetch('/api/admin/reload-gifts', { method: 'POST' });
+                const data = await res.json();
+                if (res.ok && data.ok) {
+                    alert('✅ Подарки перезагружены из файла');
+                    await this.loadGiftsList();
+                } else {
+                    alert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+                }
+            } catch (err) {
+                alert('❌ Ошибка: ' + err.message);
+            }
+        };
+        document.getElementById('closeAdminGiftsBtn').onclick = () => {
+            document.getElementById('adminGiftsModal').style.display = 'none';
+        };
+    }
+    
+    async loadGiftsList() {
+        try {
+            const res = await fetch('/api/admin/gifts');
+            const data = await res.json();
+            const container = document.getElementById('giftsList');
+            
+            if (res.ok && data.ok) {
+                if (data.gifts.length === 0) {
+                    container.innerHTML = '<p style="color:#72767d;text-align:center;">🎁 Подарков пока нет</p>';
+                } else {
+                    container.innerHTML = data.gifts.map(gift => `
+                        <div style="background:#40444b;border-radius:8px;padding:12px;margin-bottom:10px;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                                <span style="color:${gift.emoji === '🍺' || gift.emoji === '🍔' ? '#43b581' : '#ff00ff'};font-weight:bold;">${gift.emoji} ${gift.message}</span>
+                                <span style="color:${gift.claimed ? '#ed4245' : '#43b581'};font-size:12px;">
+                                    ${gift.claimed ? '✓ Получен' : '• Доступен'}
+                                </span>
+                            </div>
+                            ${gift.claimed ? `
+                                <div style="font-size:11px;color:#ed4245;margin-bottom:6px;">
+                                    👤 Пользователь: ${gift.claimedBy || 'Неизвестен'}<br>
+                                    🕰 ${gift.claimedAt || 'Неизвестно'}
+                                </div>
+                            ` : ''}
+                            <div style="font-size:12px;color:#b9bbbe;margin-bottom:8px;">⏰ До: ${gift.expires}</div>
+                            <input type="text" value="${gift.link}" readonly 
+                                   style="width:100%;padding:6px;background:#2f3136;border:1px solid #5865f2;border-radius:4px;color:#dcddde;font-size:11px;" 
+                                   onclick="this.select();navigator.clipboard.writeText(this.value);">
+                        </div>
+                    `).join('');
+                }
+            } else {
+                container.innerHTML = '<p style="color:#ed4245;text-align:center;">❌ Ошибка загрузки</p>';
+            }
+        } catch (err) {
+            document.getElementById('giftsList').innerHTML = '<p style="color:#ed4245;text-align:center;">❌ Ошибка: ' + err.message + '</p>';
+        }
+    }
+    
+    async showMyGiftsModal() {
+        document.getElementById('myGiftsModal').style.display = 'flex';
+        await this.loadMyGifts();
+        
+        document.getElementById('refreshMyGiftsBtn').onclick = () => this.loadMyGifts();
+        document.getElementById('closeMyGiftsBtn').onclick = () => {
+            document.getElementById('myGiftsModal').style.display = 'none';
+        };
+    }
+    
+    async transferGift(giftId) {
+        const targetUsername = prompt('Введите ник пользователя, которому хотите передать подарок:');
+        if (!targetUsername || !targetUsername.trim()) return;
+        
+        try {
+            const res = await fetch('/api/transfer-gift', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ giftId, targetUsername: targetUsername.trim() })
+            });
+            const data = await res.json();
+            
+            if (res.ok && data.ok) {
+                alert(`✅ Подарок успешно передан пользователю ${targetUsername.trim()}!`);
+                await this.loadMyGifts();
+            } else {
+                alert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+            }
+        } catch (err) {
+            alert('❌ Ошибка: ' + err.message);
+        }
+    }
+    
+    async loadMyGifts() {
+        try {
+            const res = await fetch('/api/my-gifts');
+            const data = await res.json();
+            const container = document.getElementById('myGiftsList');
+            
+            if (res.ok && data.ok) {
+                if (data.gifts.length === 0) {
+                    container.innerHTML = `
+                        <style>
+                            .empty-gifts {
+                                text-align: center;
+                                padding: 50px 20px;
+                                background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+                                border-radius: 20px;
+                                border: 2px dashed rgba(255,255,255,0.1);
+                            }
+                            .empty-emoji {
+                                font-size: 80px;
+                                margin-bottom: 20px;
+                                opacity: 0.7;
+                                animation: float 3s ease-in-out infinite;
+                            }
+                            .empty-title {
+                                color: #72767d;
+                                font-size: 18px;
+                                font-weight: 600;
+                                margin-bottom: 10px;
+                            }
+                            .empty-subtitle {
+                                color: #8e9297;
+                                font-size: 14px;
+                                line-height: 1.5;
+                            }
+                            @keyframes float {
+                                0%, 100% { transform: translateY(0px); }
+                                50% { transform: translateY(-15px); }
+                            }
+                        </style>
+                        <div class="empty-gifts">
+                            <div class="empty-emoji">🎁</div>
+                            <div class="empty-title">У вас пока нет подарков</div>
+                            <div class="empty-subtitle">Получайте подарки по ссылкам и они появятся здесь!</div>
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = `
+                        <style>
+                            .gift-3d {
+                                perspective: 1000px;
+                                margin-bottom: 20px;
+                                cursor: pointer;
+                            }
+                            .gift-card {
+                                background: linear-gradient(145deg, #ff6b35, #f7931e);
+                                border-radius: 20px;
+                                padding: 20px;
+                                transform-style: preserve-3d;
+                                transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+                                box-shadow: 0 15px 35px rgba(255,107,53,0.3), inset 0 1px 0 rgba(255,255,255,0.2);
+                                position: relative;
+                                overflow: hidden;
+                            }
+                            .gift-card:hover {
+                                transform: rotateY(10deg) rotateX(5deg) translateY(-10px) scale(1.05);
+                                box-shadow: 0 25px 50px rgba(255,107,53,0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+                            }
+                            .gift-card::before {
+                                content: '';
+                                position: absolute;
+                                top: -50%;
+                                left: -50%;
+                                width: 200%;
+                                height: 200%;
+                                background: conic-gradient(from 0deg, transparent, rgba(255,255,255,0.1), transparent);
+                                animation: rotate 4s linear infinite;
+                                opacity: 0;
+                                transition: opacity 0.3s;
+                            }
+                            .gift-card:hover::before {
+                                opacity: 1;
+                            }
+                            .gift-emoji {
+                                font-size: 60px;
+                                text-align: center;
+                                margin-bottom: 15px;
+                                position: relative;
+                                transform-style: preserve-3d;
+                                animation: bounce 2s ease-in-out infinite;
+                            }
+                            .beer-3d {
+                                display: inline-block;
+                                position: relative;
+                                transform: perspective(400px) rotateX(25deg) rotateY(-20deg) rotateZ(5deg);
+                                filter: drop-shadow(10px 20px 30px rgba(0,0,0,0.6)) drop-shadow(0 0 25px rgba(255,193,7,0.5));
+                                transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+                                animation: beerFloat3D 5s ease-in-out infinite;
+                                font-size: 1.3em;
+                                transform-style: preserve-3d;
+                            }
+                            .beer-3d:hover {
+                                transform: perspective(400px) rotateX(15deg) rotateY(10deg) rotateZ(-5deg) scale(1.25);
+                                filter: drop-shadow(15px 25px 40px rgba(0,0,0,0.8)) drop-shadow(0 0 35px rgba(255,193,7,0.7));
+                                animation-duration: 2.5s;
+                            }
+                            .beer-3d::before {
+                                content: '🍺';
+                                position: absolute;
+                                top: 4px;
+                                left: 4px;
+                                z-index: -1;
+                                opacity: 0.4;
+                                transform: translateZ(-20px) scale(0.9);
+                                filter: blur(2px);
+                            }
+                            .beer-3d::after {
+                                content: '';
+                                position: absolute;
+                                top: 25%;
+                                left: 25%;
+                                width: 60px;
+                                height: 60px;
+                                background: radial-gradient(ellipse at 30% 30%, rgba(255,255,255,0.6) 0%, rgba(255,193,7,0.3) 40%, transparent 70%);
+                                border-radius: 50%;
+                                transform: translate(-50%, -50%) rotateX(60deg);
+                                animation: beerShine 3s ease-in-out infinite;
+                                pointer-events: none;
+                            }
+                            .error-3d {
+                                display: inline-block;
+                                position: relative;
+                                transform: perspective(400px) rotateX(20deg) rotateY(-15deg) rotateZ(2deg);
+                                filter: drop-shadow(10px 20px 30px rgba(255,0,255,0.6)) drop-shadow(0 0 25px rgba(255,0,0,0.5));
+                                transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+                                animation: errorGlitch3D 3s ease-in-out infinite;
+                                font-size: 1.3em;
+                                transform-style: preserve-3d;
+                            }
+                            .error-3d:hover {
+                                transform: perspective(400px) rotateX(10deg) rotateY(5deg) rotateZ(-3deg) scale(1.25);
+                                filter: drop-shadow(15px 25px 40px rgba(255,0,255,0.8)) drop-shadow(0 0 35px rgba(255,0,0,0.7));
+                                animation-duration: 1.5s;
+                            }
+                            .error-3d::before {
+                                content: '❌';
+                                position: absolute;
+                                top: 3px;
+                                left: 3px;
+                                z-index: -1;
+                                opacity: 0.6;
+                                transform: translateZ(-15px) scale(0.95);
+                                filter: blur(1px);
+                                color: #ff00ff;
+                            }
+                            .error-3d::after {
+                                content: '';
+                                position: absolute;
+                                top: 20%;
+                                left: 20%;
+                                width: 70px;
+                                height: 70px;
+                                background: radial-gradient(ellipse at 30% 30%, rgba(255,0,255,0.8) 0%, rgba(255,0,0,0.4) 40%, transparent 70%);
+                                border-radius: 50%;
+                                transform: translate(-50%, -50%) rotateX(45deg);
+                                animation: errorGlow 2s ease-in-out infinite;
+                                pointer-events: none;
+                            }
+                            @keyframes beerShine {
+                                0%, 100% { 
+                                    opacity: 0; 
+                                    transform: translate(-50%, -50%) rotateX(60deg) scale(0.7); 
+                                }
+                                50% { 
+                                    opacity: 1; 
+                                    transform: translate(-50%, -50%) rotateX(60deg) scale(1.4); 
+                                }
+                            }
+                            @keyframes errorGlow {
+                                0%, 100% { 
+                                    opacity: 0; 
+                                    transform: translate(-50%, -50%) rotateX(45deg) scale(0.8); 
+                                }
+                                50% { 
+                                    opacity: 1; 
+                                    transform: translate(-50%, -50%) rotateX(45deg) scale(1.3); 
+                                }
+                            }
+                            @keyframes beerFloat3D {
+                                0%, 100% { transform: perspective(400px) rotateX(25deg) rotateY(-20deg) rotateZ(5deg) translateY(0px); }
+                                25% { transform: perspective(400px) rotateX(20deg) rotateY(-15deg) rotateZ(3deg) translateY(-10px); }
+                                50% { transform: perspective(400px) rotateX(15deg) rotateY(-10deg) rotateZ(0deg) translateY(-15px); }
+                                75% { transform: perspective(400px) rotateX(20deg) rotateY(-15deg) rotateZ(3deg) translateY(-10px); }
+                            }
+                            @keyframes errorGlitch3D {
+                                0%, 100% { transform: perspective(400px) rotateX(20deg) rotateY(-15deg) rotateZ(2deg) translateY(0px); }
+                                10% { transform: perspective(400px) rotateX(25deg) rotateY(-10deg) rotateZ(-1deg) translateY(-5px) translateX(2px); }
+                                20% { transform: perspective(400px) rotateX(15deg) rotateY(-20deg) rotateZ(4deg) translateY(-8px) translateX(-1px); }
+                                30% { transform: perspective(400px) rotateX(30deg) rotateY(-5deg) rotateZ(1deg) translateY(-3px) translateX(1px); }
+                                50% { transform: perspective(400px) rotateX(10deg) rotateY(-25deg) rotateZ(-2deg) translateY(-12px) translateX(-2px); }
+                                70% { transform: perspective(400px) rotateX(35deg) rotateY(-8deg) rotateZ(3deg) translateY(-6px) translateX(1px); }
+                                90% { transform: perspective(400px) rotateX(18deg) rotateY(-18deg) rotateZ(0deg) translateY(-4px) translateX(-1px); }
+                            }
+                            .gift-title {
+                                color: white;
+                                font-weight: bold;
+                                font-size: 18px;
+                                text-align: center;
+                                margin-bottom: 8px;
+                                text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+                            }
+                            .gift-from {
+                                color: rgba(255,255,255,0.9);
+                                font-size: 14px;
+                                text-align: center;
+                                margin-bottom: 15px;
+                            }
+                            .gift-date {
+                                color: rgba(255,255,255,0.7);
+                                font-size: 12px;
+                                text-align: center;
+                                background: rgba(0,0,0,0.2);
+                                padding: 8px 12px;
+                                border-radius: 15px;
+                                backdrop-filter: blur(10px);
+                            }
+                            @keyframes rotate {
+                                from { transform: rotate(0deg); }
+                                to { transform: rotate(360deg); }
+                            }
+                            @keyframes bounce {
+                                0%, 100% { transform: translateY(0px) scale(1); }
+                                50% { transform: translateY(-10px) scale(1.1); }
+                            }
+                        </style>
+                        ${data.gifts.map(gift => `
+                            <div class="gift-3d" style="position:relative;">
+                                <div class="gift-card" onclick="showGiftDetail('${gift.id}', '${gift.emoji}', '${gift.message}', '${gift.from}', '${gift.claimedAt}')">
+                                    <div class="gift-emoji"><span class="${gift.emoji === '🍺' || gift.emoji === '🍔' ? 'beer-3d' : 'error-3d'}">${gift.emoji}</span></div>
+                                    <div class="gift-title">${gift.message}</div>
+                                    <div class="gift-from">От: ${gift.from}</div>
+                                    <div class="gift-date">🕰 ${gift.claimedAt}</div>
+                                </div>
+                                <button onclick="transferGift('${gift.id}'); event.stopPropagation();" style="position:absolute;top:10px;right:10px;background:rgba(255,107,53,0.8);border:none;color:white;padding:8px 12px;border-radius:8px;font-size:12px;cursor:pointer;font-weight:600;z-index:10;">🎁 Передать</button>
+                            </div>
+                        `).join('')}
+                    `;
+                }
+            } else {
+                container.innerHTML = '<p style="color:#ed4245;text-align:center;">❌ Ошибка загрузки</p>';
+            }
+        } catch (err) {
+            document.getElementById('myGiftsList').innerHTML = '<p style="color:#ed4245;text-align:center;">❌ Ошибка: ' + err.message + '</p>';
         }
     }
     
